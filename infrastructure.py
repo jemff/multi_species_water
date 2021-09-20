@@ -1,4 +1,4 @@
-
+import numpy as np
 class spectral_method:
     def __init__(self, depth, layers, segments=1):
 
@@ -135,3 +135,10 @@ def benthic_augmentor(Mx):
 
     return integrator_obj(new_x, new_m, new_D)
 
+class simple_method:
+    def __init__(self, depth, total_points):
+        tot_points = total_points
+
+        self.x = np.linspace(0, depth, tot_points)
+
+        self.M = depth / (tot_points - 1) * 0.5 * (np.identity(tot_points) + np.diag(np.ones(tot_points - 1), -1))

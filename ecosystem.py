@@ -20,7 +20,7 @@ sigma = 10
 Cmax = h * masses **(-0.25)
 epsi = eps0*((1-a)*np.log(masses/m0) - np.log(eps0))
 print(epsi)
-rz = 50*np.exp(-(Mx.x-z_mld)/sigma**2)
+rz = 10*np.exp(-(Mx.x-z_mld)/sigma**2)
 Bmax = 30
 V0 = 40
 

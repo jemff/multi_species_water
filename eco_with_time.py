@@ -2,10 +2,9 @@ import casadi as ca
 import numpy as np
 from infrastructure import *
 
-Mx = simple_method(40, 5)
-light_levels = [0, 80]
-time_lengths = [12, 12]
-
+Mx = simple_method(40, 40)
+light_levels = [0, 20, 40]
+time_lengths = [0.25, 0.25, 0.5] #sum to 1
 
 tot_times = len(time_lengths)
 
@@ -29,8 +28,8 @@ z_mld = 30
 sigma = 10
 Cmax = h * masses **(-0.25)
 epsi = eps0*((1-a)*np.log(masses/m0) - np.log(eps0))
-rz = 50*np.exp(-(Mx.x-z_mld)/sigma**2)
-Bmax = 10
+rz = 10*np.exp(-(Mx.x-z_mld)/sigma**2)
+Bmax = 30
 upright_wc = np.exp(-k * Mx.x)#.reshape((-1, 1))
 c_z = Cmax[0]
 c_ff = Cmax[1]
@@ -123,6 +122,7 @@ res_dyn_one = []
 bent_dyn = []
 r * (rz - res_level[j]) - state[j][0] * beta_z[j] * res_level[j] * sigma_z[j] * z_satiation[j]
 #print(r * (rz - res_level[j]))
+print(range(1))
 for j in range(tot_times):
     res_dyn_one.append(r * (rz - res_level[j]) - state[j][0] * beta_z[j] * res_level[j] * sigma_z[j] * z_satiation[j])
     bent_dyn.append(r_b * (state[j][-1] - Bmax) - ld_bc_enc[j] * ld_satiation[j])
@@ -137,38 +137,26 @@ df_lp = [] #
 df_ld_up = []
 df_ld_b = []
 for j in range(tot_times):
-    df_z.append(epsi[0]*beta_z[j]*res_level[j]*z_satiation[j]**2 - state[1]*sigma_ff[j]*beta_ff[j]*ff_satiation[j] + lam[j][0])
-    df_ff.append(epsi[1]*state[j][0]*beta_ff[j]*sigma_z[j]*ff_satiation[j]**2
-                 - state[j][2]*sigma_lp[j]*beta_lp[j]*lp_satiation[j]
-                 - state[j][3]*sigma_ld[j]*beta_ld[j]*ld_satiation[j] + lam[j][1])
-    df_lp.append(epsi[2]*state[j][1]*sigma_lp[j]*beta_lp[j]*lp_satiation[j]**2 + lam[j][2]) #-loss derivative
-    df_ld_up.append(epsi[3]*state[j][1]*sigma_ld[j]*beta_ld[j]*ld_satiation[j]**2 + lam[j][3])
-    df_ld_b.append(epsi[3]*beta_ld_b[j]*0.5*state[j][-1]*ld_satiation[j]**2 + lam[j][3])
+    df_z.append(epsi[0]*c_z**2*beta_z[j]*res_level[j]*z_satiation[j]**2 - state[j][1]*c_ff*sigma_ff[j]*beta_ff[j]*ff_satiation[j] + lam[j][0])
+    df_ff.append(epsi[1]*state[j][0]*c_ff**2*beta_ff[j]*sigma_z[j]*ff_satiation[j]**2
+                 - state[j][2]*c_lp*sigma_lp[j]*beta_lp[j]*lp_satiation[j]
+                 - state[j][3]*c_ld*sigma_ld[j]*beta_ld[j]*ld_satiation[j] + lam[j][1])
+    df_lp.append(epsi[2]*state[j][1]*sigma_lp[j]*c_lp**2*beta_lp[j]*lp_satiation[j]**2 + lam[j][2]) #-loss derivative
+    df_ld_up.append(epsi[3]*state[j][1]*sigma_ld[j]*c_ld**2*beta_ld[j]*ld_satiation[j]**2 + lam[j][3])
+    df_ld_b.append(epsi[3]*beta_ld_b[j]*0.5*state[j][-1]*c_ld**2*ld_satiation[j]**2 + lam[j][3])
 
-#tot_bent_dyn = 0
-#tot_z_dyn = 0
-#tot_ff_dyn = 0
-#tot_lp_dyn = 0
-#tot_ld_dyn = 0
-#for j in range(tot_times): #Total dynamics, should equal zero
-#    tot_bent_dyn = tot_bent_dyn + bent_dyn[j]
-#    tot_z_dyn = tot_z_dyn + z_dyn[j]
-#    tot_ff_dyn = tot_ff_dyn + ff_dyn[j]
-#    tot_lp_dyn = tot_lp_dyn + lp_dyn[j]
-#    tot_ld_dyn = tot_ld_dyn + ld_dyn[j]
-#dynamics = ca.vertcat(tot_bent_dyn, tot_z_dyn, tot_ff_dyn, tot_lp_dyn, tot_ld_dyn) # Total dynamics, should equal zero
 diff_eqs = []
 res_level_dyn = []
 f = 0
 for j in range(tot_times):
-    diff_eqs.append(state[j][0] - state[j-1][0] + time_lengths[j-1]*z_dyn[j-1])
-    diff_eqs.append(state[j][1] - state[j-1][1] + time_lengths[j-1]*ff_dyn[j-1])
-    diff_eqs.append(state[j][2] - state[j-1][2] + time_lengths[j-1]*lp_dyn[j-1])
-    diff_eqs.append(state[j][3] - state[j-1][3] + time_lengths[j-1]*ld_dyn[j-1])
-    diff_eqs.append(state[j][4] - state[j-1][4] + time_lengths[j-1]*z_dyn[j-1])
-    res_level_dyn.append(res_level[j] - res_level[j-1] + time_lengths[j-1]*res_dyn_one[j-1])
+    diff_eqs.append(state[j][0] - state[j-1][0] - time_lengths[j-1]*z_dyn[j-1])
+    diff_eqs.append(state[j][1] - state[j-1][1] - time_lengths[j-1]*ff_dyn[j-1])
+    diff_eqs.append(state[j][2] - state[j-1][2] - time_lengths[j-1]*lp_dyn[j-1])
+    diff_eqs.append(state[j][3] - state[j-1][3] - time_lengths[j-1]*ld_dyn[j-1])
+    diff_eqs.append(state[j][4] - state[j-1][4] - time_lengths[j-1]*bent_dyn[j-1])
+    res_level_dyn.append(res_level[j] - res_level[j-1] - time_lengths[j-1]*res_dyn_one[j-1])
 
-    f = f + inte @ (Mx.M @ ((res_level[j] - res_level[j-1] + time_lengths[j-1]*res_dyn_one[j-1])**2))
+    f = f + inte @ (Mx.M @ ((res_level[j] - res_level[j-1] - time_lengths[j-1]*res_dyn_one[j-1])**2))
 #Zeros contributed 5*total times
 
 p1 = inte @ Mx.M @ sigma_z[0] - 1
@@ -204,12 +192,15 @@ ubg = ca.vertcat(*[np.zeros(tot_times+4*tot_times + 5*tot_times), [ca.inf]*(4*to
 
 sigmas = ca.vertcat(*[*sigma_z, *sigma_ff, *sigma_lp, *sigma_ld, *sigma_ld_b]) #sigma_bar
 x = ca.vertcat(*[sigmas, *res_level, *state, *lam])
-lbx = ca.vertcat(*[np.zeros(4*tot_points*tot_times+tot_points*tot_times + 4*tot_times+4), 4*tot_times*[-ca.inf]])
+print(x.size())
+print(tot_times)
+print(4*tot_points*tot_times+tot_points*tot_times + 4*tot_times+4)
+lbx = ca.vertcat(*[np.zeros(5*tot_points*tot_times + 6*tot_times), 4*tot_times*[-ca.inf]])
 
 
 
 s_opts = {'ipopt': {'print_level' : 5, 'linear_solver':'ma57'}} #'hessian_approximation':'limited-memory',
-init = np.ones(x.size()[0])*100#/100
+init = np.ones(x.size()[0])
 
 prob = {'x': x, 'f': f, 'g': g}
 
@@ -217,3 +208,7 @@ solver = ca.nlpsol('solver', 'ipopt', prob, s_opts)
 
 sol = solver(lbx = lbx, lbg = lbg, ubg = ubg, x0 = init)
 
+
+print(sol['x'][-(9*tot_times):-4*tot_times].size())
+print(sol['x'][-9*tot_times:-4*tot_times])
+print(sol['x'].size())

@@ -1,5 +1,4 @@
 import casadi as ca
-import numpy as np
 from infrastructure import *
 
 Mx = discrete_patches(200, 30) #spectral_method(50, 50) #discrete_patches(100, 15)#spectral_method(50, 50)  # simple_method(50, 80)#spectral_method(50, 10, segments = 1) #spectral_method(30, 30, segments = 1)

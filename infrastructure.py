@@ -142,3 +142,17 @@ class simple_method:
         self.x = np.linspace(0, depth, tot_points)
 
         self.M = depth / (tot_points - 1) * 0.5 * (np.identity(tot_points) + np.diag(np.ones(tot_points - 1), -1))
+
+class discrete_patches:
+    def __init__(self, depth, total_points):
+        self.x = np.linspace(0, depth, total_points)
+
+        self.M = (depth/total_points) * np.identity(total_points)
+
+def heat_kernel(spectral, t = 1, k = 1):
+    gridx, gridy = np.meshgrid(spectral.x, spectral.x)
+    ker = lambda x, y: np.exp(-(x - y) ** 2 / (4 * k * t)) + np.exp(-(-y - x) ** 2 / (4 * k * t)) + np.exp(-(2*spectral.x[-1] - x - y) ** 2 / (4 * k * t))
+    out = (4 * t * k * np.pi) ** (-1 / 2) * ker(gridx, gridy)
+    normalizations = np.sum(spectral.M @ out, axis = 0)
+    normalizations = np.diag(1/normalizations)
+    return normalizations @ spectral.M @ out

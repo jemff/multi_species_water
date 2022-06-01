@@ -1,10 +1,10 @@
 import casadi as ca
 from infrastructure import *
 
-Mx = discrete_patches(200, 30) #spectral_method(50, 50) #discrete_patches(100, 15)#spectral_method(50, 50)  # simple_method(50, 80)#spectral_method(50, 10, segments = 1) #spectral_method(30, 30, segments = 1)
+Mx = discrete_patches(100, 20) #spectral_method(50, 50) #discrete_patches(100, 15)#spectral_method(50, 50)  # simple_method(50, 80)#spectral_method(50, 10, segments = 1) #spectral_method(30, 30, segments = 1)
 
-light_levels = [0, 0.2, 1, 0.2] #[1, 0]
-time_lengths = [0.4, 0.1, 0.4, 0.1] #[0.5, 0.5]
+light_levels = [0, 0.2, 1, 0.2] #[1, 0] # #
+time_lengths = [0.4, 0.1, 0.4, 0.1] #[0.5, 0.5] # #
 
 
 tot_times = len(time_lengths)
@@ -20,12 +20,12 @@ a = 0.4
 m0 = 10 ** (-3)
 gamma = 0.6
 k = 0.05
-masses = np.array([11, 4000, 4000])
+masses = np.array([11, 5000, 4000])
 f_c = 0.15 / 365
 r = 1 / 365
 r_b = 0.1 / 365
 eps0 = 0.05
-R_max = 10  # Varied between 5 and 100
+R_max = 5  # Varied between 5 and 100
 z_mld = 30
 sigma = 10
 Cmax = h * masses ** (-0.25)
@@ -91,7 +91,7 @@ com_lp = 5
 com_ld = 5
 
 for j in range(tot_times):
-    ff_z_enc.append(inte @ (Mx.M @ (beta_ff[j] * sigma_ff[j] * res_level[j])))
+    ff_z_enc.append(beta_ff[j] * sigma_ff[j] * res_level[j])
     ff_satiation.append(1 / (ff_z_enc[j] + c_ff))  # c_ff*ff_z_enc
 
     lp_ff_enc.append(inte @ (Mx.M @ (beta_lp[j] * sigma_ff[j] * sigma_lp[j])))
@@ -125,13 +125,13 @@ for j in range(tot_times):
         r * (rz - res_level[j]) - state[j][0] * c_ff * beta_ff[j] * res_level[j] * sigma_ff[j] * ff_satiation[j])
     bent_dyn.append(r_b * (Bmax - state[j][3]) - c_ld * state[j][2] * state[j][2] * ld_bc_enc[j] * ld_satiation[j])
     ff_dyn.append(state[j][0] * (
-                epsi[0] * (c_ff * ff_z_enc[j] * ff_satiation[j] - f_c) - state[j][1] * c_lp * lp_ff_enc[j] *
+                epsi[0] * (inte @ Mx.M @ ( ff_z_enc[j] * ff_satiation[j]) - f_c)*c_ff - state[j][1] * c_lp * lp_ff_enc[j] *
                 lp_satiation[j] - state[j][2] * ld_ff_enc[j] * ld_satiation[j] - bg_M))
     lp_dyn.append(
-        state[j][1] * (epsi[1] * (c_lp * state[j][0] * lp_ff_enc[j] * lp_satiation[j] - f_c) - lp_loss[j] - bg_M))
+        state[j][1] * (epsi[1] * (state[j][0] * lp_ff_enc[j] * lp_satiation[j] - f_c) - lp_loss[j] - bg_M)*c_lp)
     ld_dyn.append(state[j][2] * (epsi[2] * (
-                c_ld * state[j][0] * ld_ff_enc[j] * ld_satiation[j] + state[j][3] * ld_bc_enc[j] * c_ld * ld_satiation[
-            j] - f_c) - ld_loss[j] - ld_loss_b[j] - bg_M))
+                state[j][0] * ld_ff_enc[j] * ld_satiation[j] + state[j][3] * ld_bc_enc[j] * ld_satiation[
+            j] - f_c) * c_ld - ld_loss[j] - ld_loss_b[j] - bg_M))
 
     diff_eq_res += time_lengths[j] * res_dyn[j]
 
@@ -156,8 +156,8 @@ for j in range(tot_times):
                  - state[j][2] * c_ld * sigma_ld[j] * beta_ld[j] * ld_satiation[j] + lam[j][0])
     df_lp.append((epsi[1]) * state[j][0] * sigma_lp[j] * c_lp ** 2 * beta_lp[j] * lp_satiation[j] ** 2 - com_lp*sigma_lp[j]*beta_lp[j] + lam[j][
         1])
-    df_ld_up.append(epsi[2] * state[j][0] * sigma_ld[j] * c_ld ** 2 * beta_ld[j] * ld_satiation[j] ** 2 - com_ld*sigma_ld[j]*beta_ld[j] + lam[j][2])
-    df_ld_b.append(epsi[2] * beta_ld_b[j] * 0.5 * state[j][3] * c_ld ** 2 * ld_satiation[j] ** 2 - com_ld*beta_ld_b[j]*sigma_ld_b[j] + lam[j][2])
+    df_ld_up.append(epsi[2] * state[j][0] * sigma_ld[j] * c_ld *(c_ld+sigma_ld_b[j]*beta_ld_b[j] * 0.5 * state[j][3]) * beta_ld[j] * ld_satiation[j] ** 2 - com_ld*sigma_ld[j]*beta_ld[j] + lam[j][2])
+    df_ld_b.append(epsi[2] * beta_ld_b[j] * 0.5 * state[j][3] * c_ld * (c_ld + inte @ (Mx.M @ (sigma_ld[j]*beta_ld[j]*sigma_ff[j]))) * ld_satiation[j] ** 2 - com_ld*beta_ld_b[j]*sigma_ld_b[j] + lam[j][2])
 
 p1 = inte @ Mx.M @ sigma_ff[0] - 1
 p2 = inte @ Mx.M @ sigma_lp[0] - 1
@@ -195,7 +195,7 @@ print(g.size(), x.size(), 4*tot_points*tot_times, 4*tot_times, 4*tot_times)
 
 lbx = ca.vertcat(*[np.zeros(4 * tot_points * tot_times + 5 * tot_times), 3 * tot_times * [-ca.inf]])
 print("Lower bounds")
-s_opts = {'ipopt': {'print_level': 5, 'linear_solver': 'ma57'}}  # 'hessian_approximation':'limited-memory',
+s_opts = {'ipopt': {'print_level': 5, 'hessian_approximation':'limited-memory', 'linear_solver': 'ma57'}}  #
 init = np.ones(x.size()[0]) / Mx.x[-1]
 init[-7 * tot_times:-3 * tot_times] = 10  # np.array([0.0265501, 0, 5.6027, 0.940087])
 print("Init set")

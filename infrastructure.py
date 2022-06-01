@@ -115,8 +115,8 @@ class spectral_method:
 class integrator_obj:
     def __init__(self, x, M, D):
         self.x = x
-        self.M = M
         self.D = D
+        self.M = M
         self.tot_points = x.shape[0]
         self.inte = np.ones(tot_points).reshape(1,tot_points)
 
@@ -142,12 +142,30 @@ class simple_method:
         self.x = np.linspace(0, depth, tot_points)
 
         self.M = depth / (tot_points - 1) * 0.5 * (np.identity(tot_points) + np.diag(np.ones(tot_points - 1), -1))
+        h = depth/tot_points
+        self.D = 1/(2*h)*self.fin_diff_mat(tot_points)
+
+    def fin_diff_mat(self, N):
+        D = np.zeros((N, N))
+        D[0, 0] = -3
+        D[-1, -1] = 3
+        D[0, 2] = -1
+        D[-1, -3] = 1
+        D = D - np.diag(np.ones(N - 1), -1)
+        D = D + np.diag(np.ones(N - 1), 1)
+        D[0, 1] += 3
+        D[-1, -2] -= 3
+
+        return D
 
 class discrete_patches:
     def __init__(self, depth, total_points):
         self.x = np.linspace(0, depth, total_points)
 
         self.M = (depth/total_points) * np.identity(total_points)
+        self.M[-1,-1] = 1/2*self.M[-1,-1]
+        self.M[0,0] = 1/2*self.M[0,0]
+
 
 def heat_kernel(spectral, t = 1, k = 1):
     gridx, gridy = np.meshgrid(spectral.x, spectral.x)

@@ -72,7 +72,7 @@ metabolism[-1] = 0.5*metabolism[-1]
 print(metabolism)
 epsi = eps0 * ((1 - a) * np.log(masses / m0) - np.log(eps0))
 # epsi = 0.7*epsi/epsi
-rz = 1 / (8.8) * np.exp(-((Mx.x)) ** 2 / (10 ** 2)) + 10 ** (-5)
+rz = 1 / (8.8) * np.exp(-((Mx.x)) ** 2 / (5 ** 2)) + 10 ** (-5)
 T_dist = np.exp(-((Mx.x - Mx.x[-1])) ** 2 / (10 ** 2))
 mass_T = inte @ Mx.M @ T_dist
 bent_dist = T_dist / mass_T

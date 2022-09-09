@@ -385,7 +385,6 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
         if counter > 0:
 
 
-            print("Counter: ", counter)
             x_vals = np.linspace(0, depth, j_s)
             t_vals = np.linspace(0, 24 * 60, j_t + 1)[:-1]
 

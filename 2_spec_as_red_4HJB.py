@@ -261,109 +261,54 @@ from scipy.ndimage import gaussian_filter
 def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t = 5, jumpsize_s = 5, save = True, Rmax = 5, warmstart_info = None, warmstart_opts = 1e-3, tol = 1e-6):
     x_vals = np.linspace(0,depth,ir_s)
     t_vals = np.linspace(0, 24*60, ir_t + 1)[:-1]
-    gf = lambda x: x #gaussian_filter(x, 1/10, mode='nearest')
-
-        #np.linspace(0, 1, ir + 1)[:-1]
-    results = []
-    results.append(output(tot_points = ir_s, fidelity = ir_t, Rmax=Rmax, warmstart_info = warmstart_info, warmstart_opts=warmstart_opts, hessian_approximation=False, tol = 1e-8))
-    decision_vars = []
-    state_vars = []
-
-    mult_dec_var = []
-    mult_stat_var = []
     def rs(x, y, z = None):
         if z is None:
             return x.reshape((y,y))
         else:
             return x.reshape((y,z))
 
-    for k in range(6):
-        decision_vars.append(interp2d(x_vals, t_vals, rs(results[0]['x0'][k*ir_s*ir_t : (k+1)*ir_s*ir_t], ir_t, ir_s), kind = 'linear'))
-        mult_dec_var.append(interp2d(x_vals, t_vals, rs(results[0]['lam_x0'][k*ir_s*ir_t : (k+1)*ir_s*ir_t], ir_t, ir_s), kind = 'linear'))
-    offset = 6*ir_s*ir_t
-
-    state_var_cop = np.copy(results[0]['x0'][offset:])
-    mult_stat_var_cop = np.copy(results[0]['lam_x0'][offset:])
-    s0 = state_var_cop[0::3]
-    s1 = state_var_cop[1::3]
-    s2 = state_var_cop[2::3]
-    s_l = [s0, s1, s2]
-    lam_s0 = mult_stat_var_cop[0::3]
-    lam_s1 = mult_stat_var_cop[1::3]
-    lam_s2 = mult_stat_var_cop[2::3]
-
-    lam_s_l = [lam_s0, lam_s1, lam_s2]
-    for k in range(3):
-        state_vars.append(interp1d(t_vals, s_l[k], fill_value="extrapolate"))
-        mult_stat_var.append(interp1d(t_vals, lam_s_l[k], fill_value="extrapolate"))
-
-    mult_ineq = []
-    for k in range(2):
-        mult_ineq.append(interp1d(t_vals, results[0]['lam_g0'][k*ir_t:(k+1)*ir_t], fill_value="extrapolate"))
-    mult_ineq.append(results[0]['lam_g0'][-10:])
-    #offset = 2*ir_t
-    #for k in range(5):
-    #    mult_ineq.append(interp2d(x_vals, t_vals, rs(results[0]['lam_g0'][offset + k*ir**2 : offset + (k+1)*ir**2], ir)))
-
     counter = 0
-    x0_j = []
-    lam_x0_j = []
-    lam_g0_j = []
-    for k in range(6):
-        x0_j.append(gf(decision_vars[k](x_vals, t_vals)).flatten())
-        lam_x0_j.append(gf(mult_dec_var[k](x_vals, t_vals)).flatten())
-
-
-    x0_j_state = np.zeros(3 * ir_t)
-    lam_x0_j_state = np.zeros(3 * ir_t)
-    for k in range(3):
-        x0_j_state[k::3] = (state_vars[k](t_vals))
-        lam_x0_j_state[k::3] = (mult_stat_var[k](t_vals))
-
-
-    for k in range(2):
-        lam_g0_j.append(mult_ineq[k](t_vals))
-    lam_g0_j.append(np.array([results[0]['lam_g0'][-10:]]).squeeze())
-    #for k in range(5):
-    #    lam_g0_j.append(mult_ineq[2+k](x_vals, t_vals).flatten())
-    print(np.concatenate([*lam_g0_j]).shape)
-    print("Testing info:", "\n", np.linalg.norm(np.concatenate([*x0_j, x0_j_state])-results[0]['x0']),  "\n",  np.linalg.norm(np.concatenate([*lam_x0_j, lam_x0_j_state])-results[0]['lam_x0']),  "\n", np.linalg.norm(results[0]['lam_g0'] - np.concatenate([*lam_g0_j])))
     j_t_l = np.array(range(ir_t, fr_t+1, jumpsize_t))
     j_s_l = np.array(range(ir_s, fr_s+1, jumpsize_s))
-    print(j_t_l, j_s_l)
 
     j_l = []
     for k in range(max(len(j_s_l), len(j_t_l))):
         j_l.append([j_s_l[min(k, len(j_s_l)-1)], j_t_l[min(k, len(j_t_l)-1)]])
-    print(len(j_l))
-    for j in range(1, len(j_l)):
+
+        #np.linspace(0, 1, ir + 1)[:-1]
+    results = []
+    for j in range(0, len(j_l)):
+        print("Current step: ", counter)
         j_t = j_l[j][1]
         j_s = j_l[j][0]
+        if counter is 0:
+            results.append(output(tot_points = ir_s, fidelity = ir_t, Rmax=Rmax, warmstart_info = warmstart_info, warmstart_opts=warmstart_opts, hessian_approximation=False, tol = 1e-8))
+            carryover_trans = np.array([results[counter]['lam_g0'][-10:]]).squeeze()
 
-        counter+=1
-        print("Counter: ", counter)
-        x_vals = np.linspace(0, depth, j_s)
-        t_vals = np.linspace(0, 24*60, j_t + 1)[:-1]
-        x0_j = []
-        lam_x0_j = []
-        lam_g0_j = []
-        for k in range(6):
-            x0_j.append(gf(decision_vars[k](x_vals, t_vals)).flatten())
-            lam_x0_j.append(gf(mult_dec_var[k](x_vals, t_vals)).flatten())
+        if counter > 0:
+            x_vals = np.linspace(0, depth, j_s)
+            t_vals = np.linspace(0, 24 * 60, j_t + 1)[:-1]
 
-        x0_j_state = np.zeros(3 * j_t)
-        lam_x0_j_state = np.zeros(3 * j_t)
-        for k in range(3):
-            x0_j_state[k::3] = (state_vars[k](t_vals))
-            lam_x0_j_state[k::3] = (mult_stat_var[k](t_vals))
+            x0_j = []
+            lam_x0_j = []
+            lam_g0_j = []
 
-        for k in range(2):
-            lam_g0_j.append(mult_ineq[k](t_vals))
-        lam_g0_j.append(np.array([results[j-1]['lam_g0'][-10:]]).squeeze())
+            for k in range(6):
+                x0_j.append((decision_vars[k](x_vals, t_vals)).flatten())
+                lam_x0_j.append((mult_dec_var[k](x_vals, t_vals)).flatten())
 
-        warmstart_inf = {'x0': np.concatenate([*x0_j, x0_j_state]), 'lam_x0': np.concatenate([*lam_x0_j, lam_x0_j_state]), 'lam_g0': np.concatenate([*lam_g0_j])}
-        results.append(output(tot_points = j_s, fidelity = j_t, warmstart_info=warmstart_inf, Rmax=Rmax))
+            x0_j_state = np.zeros(3 * j_t)
+            lam_x0_j_state = np.zeros(3 * j_t)
+            for k in range(3):
+                x0_j_state[k::3] = (state_vars[k](t_vals))
+                lam_x0_j_state[k::3] = (mult_stat_var[k](t_vals))
 
+            for k in range(2):
+                lam_g0_j.append(mult_ineq[k](t_vals))
+            lam_g0_j.append(carryover_trans)
+            warmstart_inf = {'x0': np.concatenate([*x0_j, x0_j_state]), 'lam_x0': np.concatenate([*lam_x0_j, lam_x0_j_state]), 'lam_g0': np.concatenate([*lam_g0_j])}
+            results.append(output(tot_points = j_s, fidelity = j_t, warmstart_info=warmstart_inf, Rmax=Rmax))
+            carryover_trans = np.array([results[counter]['lam_g0'][-10:]]).squeeze()
         decision_vars = []
         state_vars = []
 
@@ -392,7 +337,11 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
         mult_ineq = []
         for k in range(2):
             mult_ineq.append(interp1d(t_vals, results[counter]['lam_g0'][k * j_t:(k + 1) * j_t], fill_value="extrapolate"))
-        mult_ineq.append(results[counter]['lam_g0'][-10:])
+        #if counter is 1:
+        #    print("Testing info:", "\n", np.linalg.norm(np.concatenate([*x0_j, x0_j_state])-results[0]['x0']),  "\n",  np.linalg.norm(np.concatenate([*lam_x0_j, lam_x0_j_state])-results[0]['lam_x0']),  "\n", np.linalg.norm(results[0]['lam_g0'] - np.concatenate([*lam_g0_j])))
+        counter+=1
+
+
     if save is True:
         with open('data/' + 'pdeco2_'+str(fr_t*fr_s)+'_' + str(Rmax) + '.pkl', 'wb') as f:
             pkl.dump(results, f, pkl.HIGHEST_PROTOCOL)

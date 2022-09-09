@@ -190,7 +190,10 @@ def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info =
     trans_z_t =  (ones @ (M_per @ trans_z)) @ i1/(tot_points-1)
     trans_ff_t = (ones @ (M_per @ trans_ff))@ i1/(tot_points-1)
 
-    force_periodic = ones @ (M_per @ v_c(dyn_0))**2 + ones @ (M_per @ v_c(dyn_1))**2 + ones @ (M_per @ v_c(dyn_5))**2
+    fp_z = ones @ (M_per @ v_c(dyn_0))**2
+    fp_ff = ones @ (M_per @ v_c(dyn_0))**2
+    fp_r = ones @ (M_per @ v_c(dyn_5))**2
+
     D_ex = fin_diff_mat_periodic(N = fidelity, length = 24*60, central = True)
     p_eq_z = ones @ M_per @ (D_ex @ v_c(s0_vec) - v_c(dyn_0))**2
     p_eq_ff = ones @ M_per @ (D_ex @ v_c(s1_vec) - v_c(dyn_1))**2
@@ -202,11 +205,11 @@ def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info =
 
     x = ca.vertcat(*[*vel_z_l, *vel_ff_l, *p_z_l, *p_ff_l, *sigma_z_l, *sigma_ff_l, *state_l])
 
-    g = ca.vertcat(*[*prob_l, trans_z_t, trans_ff_t, force_periodic,  J_z_v , J_ff_v, J_z_p, J_ff_p, p_eq_z, p_eq_ff, p_eq_r])#, ca.reshape(J_z_p, (-1,1)), ca.reshape(J_ff_p, (-1,1)), ca.reshape(J_ff_p, -1,1), ca.reshape(J_z_v, (-1,1)), ca.reshape(J_ff_v, (-1,1))])#, ca.reshape(trans_z,  (-1,1)), ca.reshape(trans_ff, (-1,1))])
+    g = ca.vertcat(*[*prob_l, trans_z_t, trans_ff_t, fp_z, fp_ff, fp_r,  J_z_v , J_ff_v, J_z_p, J_ff_p, p_eq_z, p_eq_ff, p_eq_r])#, ca.reshape(J_z_p, (-1,1)), ca.reshape(J_ff_p, (-1,1)), ca.reshape(J_ff_p, -1,1), ca.reshape(J_z_v, (-1,1)), ca.reshape(J_ff_v, (-1,1))])#, ca.reshape(trans_z,  (-1,1)), ca.reshape(trans_ff, (-1,1))])
     probs = 2*fidelity
-    lbg = np.concatenate([np.zeros(probs+10)])#, np.repeat(-10**(-6), g.size()[0] - probs)])
+    lbg = np.concatenate([np.zeros(probs+12)])#, np.repeat(-10**(-6), g.size()[0] - probs)])
     #upper_zeros = 2*fidelity+2*fidelity*tot_points
-    ubg = np.concatenate([np.zeros(probs), 1e-8*np.ones(2), 1e-8*np.ones(8)])#, np.repeat(10**(-6), g.size()[0] - probs)])
+    ubg = np.concatenate([np.zeros(probs), 1e-8*np.ones(5), 1e-8*np.ones(7)])#, np.repeat(10**(-6), g.size()[0] - probs)])
     #np.zeros(g.size()[0])#ca.vertcat(*[*np.zeros(upper_zeros)])#, (g.size()[0]-(upper_zeros))*[ca.inf]])
     lbx = ca.vertcat(fidelity*4*tot_points*[-ca.inf], np.zeros(tot_points*fidelity*2), np.ones(fidelity*3)*10**(-5))
     ubx = ca.vertcat(*[[ca.inf]*(x.size()[0]-3*fidelity), np.repeat(Rmax, 3*fidelity)])
@@ -283,7 +286,7 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
         j_s = j_l[j][0]
         if counter is 0:
             results.append(output(tot_points = ir_s, fidelity = ir_t, Rmax=Rmax, warmstart_info = warmstart_info, warmstart_opts=warmstart_opts, hessian_approximation=False, tol = 1e-8))
-            carryover_trans = np.array([results[counter]['lam_g0'][-10:]]).squeeze()
+            carryover_trans = np.array([results[counter]['lam_g0'][-12:]]).squeeze()
 
         if counter > 0:
             x_vals = np.linspace(0, depth, j_s)
@@ -308,7 +311,7 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
             lam_g0_j.append(carryover_trans)
             warmstart_inf = {'x0': np.concatenate([*x0_j, x0_j_state]), 'lam_x0': np.concatenate([*lam_x0_j, lam_x0_j_state]), 'lam_g0': np.concatenate([*lam_g0_j])}
             results.append(output(tot_points = j_s, fidelity = j_t, warmstart_info=warmstart_inf, Rmax=Rmax))
-            carryover_trans = np.array([results[counter]['lam_g0'][-10:]]).squeeze()
+            carryover_trans = np.array([results[counter]['lam_g0'][-12:]]).squeeze()
         decision_vars = []
         state_vars = []
 
@@ -370,7 +373,7 @@ def vary_resources(start = 5, stop = 50, steps = 45, ir_t = 10, fr_t = 70, ir_s 
 #    with open('data/' + 'pdeco4_res_'+str(jumpsize) + '.pkl', 'wb') as f:
 #    pkl.dump(grid_variation, f, pkl.HIGHEST_PROTOCOL)
 
-vary_resources(steps = 46, ir_s = 4, ir_t= 12, fr_s=30, fr_t=90, jumpsize=2, stop = 50)
+vary_resources(steps = 46, ir_s = 4, ir_t= 12, fr_s=30, fr_t=90, jumpsize=1, stop = 50)
 
 #REMEMBER! THE BEST RESULT WAS CREATED WITH A JUMPSIZE OF 1 AND 46 STEPS
 #WORS ALSO WITH JUMPSIZE 2 AND 23 STEPS (simple method)

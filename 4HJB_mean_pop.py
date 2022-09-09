@@ -128,6 +128,7 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
     s4_vec = []
     s5_vec = []
 
+    state_l.append(ca.MX.sym('state', 6))
 
     for j in range(fidelity):
         Vi = light_levels[j]
@@ -156,18 +157,17 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
         vel_lp_l.append(ca.MX.sym('vel_l_'+str(j), tot_points))
         vel_ld_l.append(ca.MX.sym('vel_ff_l_'+str(j), tot_points))
 
-        state_l.append(ca.MX.sym('state_'+str(j), 6))
 
         ff_z_enc.append(beta_ff[j] * sigma_z_l[j] * sigma_ff_l[j])
-        ff_satiation.append(1 / (state_l[j][0] * ff_z_enc[j] + c_ff))
+        ff_satiation.append(1 / (state_l[0][0] * ff_z_enc[j] + c_ff))
 
         lp_ff_enc.append( ( (beta_lp[j] * sigma_ff_l[j] * sigma_lp_l[j])))
-        lp_satiation.append(1 / (state_l[j][1] * lp_ff_enc[j] + c_lp))
+        lp_satiation.append(1 / (state_l[0][1] * lp_ff_enc[j] + c_lp))
 
         ld_ff_enc.append(beta_ld[j] * sigma_ld_l[j] * sigma_ff_l[j])
         ld_bc_enc.append(beta_ld_b[j] * sigma_ld_l[j] * bent_dist)
 
-        ld_satiation.append((1 / (state_l[j][1] * ld_ff_enc[j] + state_l[j][4] * ld_bc_enc[j] + c_ld)))
+        ld_satiation.append((1 / (state_l[0][1] * ld_ff_enc[j] + state_l[0][4] * ld_bc_enc[j] + c_ld)))
 
         dz_sigma_z_l.append(Mx.D @ sigma_z_l[j])
         dz_sigma_ff_l.append(Mx.D @ sigma_ff_l[j])
@@ -180,13 +180,13 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
         dz_vel_ld_l.append(Mx.D @ vel_ld_l[j])
 
 
-        Jsig_z.append(epsi[0] * state_l[j][-1] * c_z*beta_z[j] * rz/(c_z+state_l[j][-1] * beta_z[j] * rz) - state_l[j][1] * (
+        Jsig_z.append(epsi[0] * state_l[0][-1] * c_z*beta_z[j] * rz/(c_z+state_l[0][-1] * beta_z[j] * rz) - state_l[0][1] * (
                     c_ff * sigma_ff_l[j] * beta_ff[j] * ff_satiation[j]) - gamma0/2*vel_z_l[j]**2)
-        Jsig_ff.append((epsi[1] * state_l[j][0] * c_ff * beta_ff[j] * sigma_z_l[j]/(c_ff + beta_ff[j]*state_l[j][0]*sigma_z_l[j]))
-                       - state_l[j][2]*sigma_lp_l[j]*c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[j][1])- state_l[j][3] * sigma_ld_l[j] * beta_ld[j]/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[j][1]+beta_ld_b[j]*state_l[j][-2]*bent_dist) - gamma1/2*vel_ff_l[j]**2)
-        Jsig_lp.append((epsi[2] * state_l[j][1] * sigma_ff_l[j] * c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[j][1])) - gamma2/2*vel_lp_l[j])
+        Jsig_ff.append((epsi[1] * state_l[0][0] * c_ff * beta_ff[j] * sigma_z_l[j]/(c_ff + beta_ff[j]*state_l[0][0]*sigma_z_l[j]))
+                       - state_l[0][2]*sigma_lp_l[j]*c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[0][1])- state_l[0][3] * sigma_ld_l[j] * beta_ld[j]/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[0][1]+beta_ld_b[j]*state_l[0][-2]*bent_dist) - gamma1/2*vel_ff_l[j]**2)
+        Jsig_lp.append((epsi[2] * state_l[0][1] * sigma_ff_l[j] * c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[0][1])) - gamma2/2*vel_lp_l[j])
         Jsig_ld.append(c_ld * epsi[3] * (
-                    state_l[j][1] * sigma_ff_l[j] * beta_ld[j] + state_l[j][4] * beta_ld_b[j] * bent_dist)/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[j][1]+beta_ld_b[j]*state_l[j][-2]*bent_dist) - gamma3/2*vel_ld_l[j]**2)
+                    state_l[0][1] * sigma_ff_l[j] * beta_ld[j] + state_l[0][4] * beta_ld_b[j] * bent_dist)/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[0][1]+beta_ld_b[j]*state_l[0][-2]*bent_dist) - gamma3/2*vel_ld_l[j]**2)
 
         dJv_z.append(-gamma0*vel_z_l[j])
         dJv_ff.append(-gamma1*vel_ff_l[j])
@@ -199,24 +199,24 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
         prob_l.append(inte @ Mx.M @ sigma_ld_l[j] - 1)
 
 
-        s0_vec.append(state_l[j][0])
-        s1_vec.append(state_l[j][1])
-        s2_vec.append(state_l[j][2])
-        s3_vec.append(state_l[j][3])
-        s4_vec.append(state_l[j][4])
-        s5_vec.append(state_l[j][5])
+        s0_vec.append(state_l[0][0])
+        s1_vec.append(state_l[0][1])
+        s2_vec.append(state_l[0][2])
+        s3_vec.append(state_l[0][3])
+        s4_vec.append(state_l[0][4])
+        s5_vec.append(state_l[0][5])
 
-        dyn_0.append(state_l[j][0] * (inte @ Mx.M @ (epsi[0] * state_l[j][-1] * sigma_z_l[j]*c_z*beta_z[j] * rz/(c_z+state_l[j][-1] * sigma_z_l[j] * beta_z[j] * rz))
-                    - state_l[j][1] * (inte @ (Mx.M @ (c_ff * ff_z_enc[j] * ff_satiation[j]))) - metabolism[0] - gamma0/2*inte @ Mx.M @ (sigma_z_l[j]*vel_z_l[j]**2)))
-        dyn_1.append(state_l[j][1] * (epsi[1] * (c_ff * state_l[j][0] * inte @ (Mx.M @ (ff_z_enc[j] * ff_satiation[j])) - f_c) - bg_M - metabolism[1] - gamma1/2*inte @ Mx.M @ (sigma_ff_l[j]*vel_ff_l[j]**2)
-                                      - inte @ (Mx.M @ (c_lp * state_l[j][2] * lp_ff_enc[j] * lp_satiation[j])) -  inte @ (Mx.M @ (c_ld * state_l[j][3] * ld_ff_enc[j] * ld_satiation[j] + state_l[j][4] * ld_bc_enc[j] * c_ld * ld_satiation[j]))))
+        dyn_0.append(state_l[0][0] * (inte @ Mx.M @ (epsi[0] * state_l[0][-1] * sigma_z_l[j]*c_z*beta_z[j] * rz/(c_z+state_l[0][-1] * sigma_z_l[j] * beta_z[j] * rz))
+                    - state_l[0][1] * (inte @ (Mx.M @ (c_ff * ff_z_enc[j] * ff_satiation[j]))) - metabolism[0] - gamma0/2*inte @ Mx.M @ (sigma_z_l[j]*vel_z_l[j]**2)))
+        dyn_1.append(state_l[0][1] * (epsi[1] * (c_ff * state_l[0][0] * inte @ (Mx.M @ (ff_z_enc[j] * ff_satiation[j])) - f_c) - bg_M - metabolism[1] - gamma1/2*inte @ Mx.M @ (sigma_ff_l[j]*vel_ff_l[j]**2)
+                                      - inte @ (Mx.M @ (c_lp * state_l[0][2] * lp_ff_enc[j] * lp_satiation[j])) -  inte @ (Mx.M @ (c_ld * state_l[0][3] * ld_ff_enc[j] * ld_satiation[j] + state_l[0][4] * ld_bc_enc[j] * c_ld * ld_satiation[j]))))
 
-        dyn_2.append(state_l[j][2] * (epsi[2] * (inte @ (Mx.M @ (c_lp * state_l[j][1] * lp_ff_enc[j] * lp_satiation[j] ))- f_c) - bg_M -
+        dyn_2.append(state_l[0][2] * (epsi[2] * (inte @ (Mx.M @ (c_lp * state_l[0][1] * lp_ff_enc[j] * lp_satiation[j] ))- f_c) - bg_M -
                     metabolism[2] - gamma2/2*inte @ Mx.M @ (sigma_lp_l[j]*vel_lp_l[j]**2)))
-        dyn_3.append(state_l[j][3] * (epsi[3] * inte @ (Mx.M @ ((c_ld * state_l[j][1] * ld_ff_enc[j] * ld_satiation[j] + state_l[j][4] * ld_bc_enc[j] * c_ld * ld_satiation[j])) - f_c) - bg_M - metabolism[3] - gamma3/2*inte @ Mx.M @ (sigma_ld_l[j]*vel_ld_l[j]**2)))
-                                    #  - comp * state_l[j][3] * inte @ (Mx.M @ ((beta_ld_b[j] * bent_t) * sigma_ld_l[j] ** 2))))
-        dyn_4.append(r_b * (Bmax - state_l[j][4]) - state_l[j][4]*state_l[j][3] * inte @ ( Mx.M @ (c_ld * ld_bc_enc[j] * ld_satiation[j])))
-        dyn_5.append(r * (Rmax - state_l[j][-1]) - state_l[j][-1]* state_l[j][0] * inte @ Mx.M @ (sigma_z_l[j]*c_z*beta_z[j] * rz/(c_z+state_l[j][-1] * sigma_z_l[j] * beta_z[j] * rz)))
+        dyn_3.append(state_l[0][3] * (epsi[3] * inte @ (Mx.M @ ((c_ld * state_l[0][1] * ld_ff_enc[j] * ld_satiation[j] + state_l[0][4] * ld_bc_enc[j] * c_ld * ld_satiation[j])) - f_c) - bg_M - metabolism[3] - gamma3/2*inte @ Mx.M @ (sigma_ld_l[j]*vel_ld_l[j]**2)))
+                                    #  - comp * state_l[0][3] * inte @ (Mx.M @ ((beta_ld_b[j] * bent_t) * sigma_ld_l[j] ** 2))))
+        dyn_4.append(r_b * (Bmax - state_l[0][4]) - state_l[0][4]*state_l[0][3] * inte @ ( Mx.M @ (c_ld * ld_bc_enc[j] * ld_satiation[j])))
+        dyn_5.append(r * (Rmax - state_l[0][-1]) - state_l[0][-1]* state_l[0][0] * inte @ Mx.M @ (sigma_z_l[j]*c_z*beta_z[j] * rz/(c_z+state_l[0][-1] * sigma_z_l[j] * beta_z[j] * rz)))
 
 
     v_c = lambda x: ca.vertcat(*x)
@@ -282,15 +282,21 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
     trans_ld_t = (i1 @ (M_per @ trans_ld)) @ ones/(tot_points-1)
 
     trans_eqs = trans_z_t + trans_ff_t + trans_lp_t + trans_ld_t
+    fp_z = i1 @ (M_per @ v_c(dyn_0))**2
+    fp_ff = i1 @ (M_per @ v_c(dyn_1))**2
+    fp_lp = i1 @ (M_per @ v_c(dyn_2))**2
+    fp_ld =  i1 @ (M_per @ v_c(dyn_3))**2
+    fp_bc = i1 @ (M_per @ v_c(dyn_4))**2
+    fp_r =  i1 @ (M_per @ v_c(dyn_5))**2
 
-    force_periodic = i1 @ (M_per @ v_c(dyn_0))**2 + i1 @ (M_per @ v_c(dyn_1))**2 + i1 @ (M_per @ v_c(dyn_2))**2 + i1 @ (M_per @ v_c(dyn_3))**2 + i1 @ (M_per @ v_c(dyn_4))**2 + i1 @ (M_per @ v_c(dyn_5))**2
+    force_periodic = 0 #i1 @ (M_per @ v_c(dyn_0))**2 + i1 @ (M_per @ v_c(dyn_1))**2 + i1 @ (M_per @ v_c(dyn_2))**2 + i1 @ (M_per @ v_c(dyn_3))**2 + i1 @ (M_per @ v_c(dyn_4))**2 + i1 @ (M_per @ v_c(dyn_5))**2
 
-    p_eq_z = i1 @ M_per @ (D @ v_c(s0_vec) - v_c(dyn_0))**2
-    p_eq_ff = i1 @ M_per @ (D @ v_c(s1_vec) - v_c(dyn_1))**2
-    p_eq_lp = i1 @ M_per @ (D @ v_c(s2_vec) - v_c(dyn_2))**2
-    p_eq_ld = i1 @ M_per @ (D @ v_c(s3_vec) - v_c(dyn_3))**2
-    p_eq_bc = i1 @ M_per @ (D @ v_c(s4_vec) - v_c(dyn_4))**2
-    p_eq_r = i1 @ M_per @ (D @ v_c(s5_vec) - v_c(dyn_5))**2
+    p_eq_z = 0 #i1 @ M_per @ (D @ v_c(s0_vec) - v_c(dyn_0))**2
+    p_eq_ff = 0 #3i1 @ M_per @ (D @ v_c(s1_vec) - v_c(dyn_1))**2
+    p_eq_lp = 0 #i1 @ M_per @ (D @ v_c(s2_vec) - v_c(dyn_2))**2
+    p_eq_ld = 0 #i1 @ M_per @ (D @ v_c(s3_vec) - v_c(dyn_3))**2
+    p_eq_bc = 0 #i1 @ M_per @ (D @ v_c(s4_vec) - v_c(dyn_4))**2
+    p_eq_r = 0 #i1 @ M_per @ (D @ v_c(s5_vec) - v_c(dyn_5))**2
     pop_dyn_eqs = p_eq_z + p_eq_ff + p_eq_lp + p_eq_ld + p_eq_r + p_eq_bc
 
 
@@ -298,14 +304,14 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
 
     x = ca.vertcat(*[*vel_z_l, *vel_ff_l, *vel_lp_l, *vel_ld_l, *p_z_l, *p_ff_l, *p_lp_l, *p_ld_l, *sigma_z_l, *sigma_ff_l, *sigma_lp_l, *sigma_ld_l, *state_l])
 
-    g = ca.vertcat(*[*prob_l, trans_z_t, trans_ff_t, trans_lp_t, trans_ld_t, p_eq_z, p_eq_ff, p_eq_lp, p_eq_ld, p_eq_r, p_eq_bc, force_periodic,  J_z_v , J_ff_v, J_lp_v , J_ld_v, J_lp_p, J_ld_p, J_z_p, J_ff_p])#, ca.reshape(J_z_p, (-1,1)), ca.reshape(J_ff_p, (-1,1)), ca.reshape(J_ff_p, -1,1), ca.reshape(J_z_v, (-1,1)), ca.reshape(J_ff_v, (-1,1))])#, ca.reshape(trans_z,  (-1,1)), ca.reshape(trans_ff, (-1,1))])
+    g = ca.vertcat(*[*prob_l, trans_z_t, trans_ff_t, trans_lp_t, trans_ld_t, fp_z, fp_ff, fp_lp, fp_ld, fp_bc, fp_r, force_periodic,  J_z_v , J_ff_v, J_lp_v , J_ld_v, J_lp_p, J_ld_p, J_z_p, J_ff_p])#, ca.reshape(J_z_p, (-1,1)), ca.reshape(J_ff_p, (-1,1)), ca.reshape(J_ff_p, -1,1), ca.reshape(J_z_v, (-1,1)), ca.reshape(J_ff_v, (-1,1))])#, ca.reshape(trans_z,  (-1,1)), ca.reshape(trans_ff, (-1,1))])
     probs = 4*fidelity
     lbg = np.concatenate([np.zeros(probs+19)])#, np.repeat(-10**(-6), g.size()[0] - probs)])
     #upper_zeros = 2*fidelity+2*fidelity*tot_points
     ubg = np.concatenate([np.zeros(probs), 1e-8*np.ones(10), 1e-8*np.ones(9)])#, np.repeat(10**(-6), g.size()[0] - probs)])
     #np.zeros(g.size()[0])#ca.vertcat(*[*np.zeros(upper_zeros)])#, (g.size()[0]-(upper_zeros))*[ca.inf]])
-    lbx = ca.vertcat(fidelity*8*tot_points*[-ca.inf], np.zeros(tot_points*fidelity*4), np.ones(fidelity*6)*10**(-5))
-    ubx = ca.vertcat(*[[ca.inf]*(x.size()[0]-6*fidelity), np.repeat(Rmax, 6*fidelity)])
+    lbx = ca.vertcat(fidelity*8*tot_points*[-ca.inf], np.zeros(tot_points*fidelity*4), np.ones(6)*10**(-5))
+    ubx = ca.vertcat(*[[ca.inf]*(x.size()[0]-6), np.repeat(Rmax, 6)])
     prob = {'x': x, 'f': f, 'g': g}
 
     #s_opts = {'ipopt':{'print_level': 5, 'linear_solver': 'ma57', 'fixed_variable_treatment': "make_constraint"}}  #
@@ -395,12 +401,8 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
                 x0_j.append(decision_vars[k](x_vals, t_vals,).flatten())
                 lam_x0_j.append(mult_dec_var[k](x_vals, t_vals,).flatten())
 
-            x0_j_state = np.zeros(6 * j_t)
-            lam_x0_j_state = np.zeros(6 * j_t)
-            for k in range(6):
-                #print(state_vars[k])
-                x0_j_state[k::6] = (state_vars[k](t_vals))
-                lam_x0_j_state[k::6] = (mult_stat_var[k](t_vals))
+            x0_j_state = np.copy(state_vars)
+            lam_x0_j_state = np.copy(mult_stat_var)
 
             for k in range(4):
                 lam_g0_j.append(mult_ineq[k](t_vals))
@@ -411,25 +413,16 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
 
 
         decision_vars = []
-        state_vars = []
 
         mult_dec_var = []
-        mult_stat_var = []
         for k in range(12):
             decision_vars.append(interp2d(x_vals, t_vals,  rs(results[counter]['x0'][k * j_s*j_t: (k + 1) * j_s*j_t], j_t, j_s), kind = 'linear'))
             mult_dec_var.append(interp2d(x_vals, t_vals,  rs(results[counter]['lam_x0'][k * j_s*j_t: (k + 1) * j_s*j_t], j_t, j_s), kind = 'linear'))
 
         offset = 12 * j_s*j_t
 
-        state_var_cop = np.copy(results[counter]['x0'][offset:])
-        mult_stat_var_cop = np.copy(results[counter]['lam_x0'][offset:])
-        s_l = []
-        lam_s_l = []
-        for k in range(6):
-            s_l.append(state_var_cop[k::6])
-            lam_s_l.append(mult_stat_var_cop[k::6])
-            state_vars.append(interp1d(t_vals, s_l[k], fill_value="extrapolate"))
-            mult_stat_var.append(interp1d(t_vals, lam_s_l[k], fill_value="extrapolate"))
+        state_vars = np.copy(results[counter]['x0'][offset:])
+        mult_stat_var = np.copy(results[counter]['lam_x0'][offset:])
 
         mult_ineq = []
         for k in range(4):
@@ -438,7 +431,7 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
 
         counter+=1
 
-    with open('data/' + 'pdeco4_'+str(fr_s*fr_t)+'_'+str(jumpsize_s*jumpsize_t) + "_B"+ str(Bmax) + "_R" + str(Rmax) + '.pkl', 'wb') as f:
+    with open('data/' + 'pdeco4_m_'+str(fr_s*fr_t)+'_'+str(jumpsize_s*jumpsize_t) + "_B"+ str(Bmax) + "_R" + str(Rmax) + '.pkl', 'wb') as f:
         pkl.dump(results, f, pkl.HIGHEST_PROTOCOL)
 
     return results
@@ -466,10 +459,10 @@ def vary_resources(start_r = 5.0, stop_r = 50.0, start_b = 0.1, stop_b = 2.0, st
                 #    increase_resolution(ir=ir, fr=fr, jumpsize=jumpsize, Bmax=benthos[j], Rmax=resources[k])[-1])
 
             print(100 * ((j * steps_r + (k + 1)) / (steps_r * steps_b)), " % complete")
-    with open('data/' + 'pdeco4_res_' + str(jumpsize) + '.pkl', 'wb') as f:
+    with open('data/' + 'pdeco4_m_res_' + str(jumpsize) + '.pkl', 'wb') as f:
         pkl.dump(grid_variation, f, pkl.HIGHEST_PROTOCOL)
 
 #    with open('data/' + 'pdeco4_res_'+str(jumpsize) + '.pkl', 'wb') as f:
 #    pkl.dump(grid_variation, f, pkl.HIGHEST_PROTOCOL)
 
-vary_resources(ir_s = 3, ir_t= 15, fr_s=31, fr_t=155, jumpsize=1, steps_r = 21, steps_b = 5, stop_r=25, stop_b=0.4, start_b=0.01)
+vary_resources(ir_s = 3, ir_t= 15, fr_s=31, fr_t=155, jumpsize=1, steps_r = 21, steps_b = 5, stop_r=25, stop_b=1, start_b=0.1)

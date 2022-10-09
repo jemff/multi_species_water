@@ -28,7 +28,7 @@ gamma0 = 1e-4
 gamma1 = 1e-3
 
 depth = 100
-def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-3, scalar = 'scalar1', hessian_approximation = True):
+def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-3, scalar = 'scalar2', hessian_approximation = True):
     Mx = discrete_patches(depth, tot_points)
     #must be even
     D_trans, D_diff_z = transport_matrix(depth, tot_points, diffusivity = diffusivity_z)
@@ -46,7 +46,7 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
     c_z = Cmax[0]
     c_ff = Cmax[1]
     beta_0 = 5*10 ** (-2)
-    A = np.cos(2*np.pi*np.linspace(0,1,5*fidelity+5)[0:-5])*1/np.sqrt(2)
+    A = np.cos(2*np.pi*np.linspace(0,1,5*fidelity+5)[0:-5])#*1/np.sqrt(2)
     A[A < -1 / 2] = -1 / 2
     A[A > 1 / 2] = 1 / 2
     A = A+1/2
@@ -257,8 +257,8 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
             return x.reshape((y,z))
 
     for k in range(4):
-        decision_vars.append(interp2d(t_vals, x_vals, rs(results[0]['x0'][k*ir_s*ir_t : (k+1)*ir_s*ir_t], ir_s, ir_t), kind = 'cubic'))
-        mult_dec_var.append(interp2d(t_vals, x_vals, rs(results[0]['lam_x0'][k*ir_s*ir_t : (k+1)*ir_s*ir_t], ir_s, ir_t), kind = 'cubic'))
+        decision_vars.append(interp2d(t_vals, x_vals, rs(results[0]['x0'][k*ir_s*ir_t : (k+1)*ir_s*ir_t], ir_s, ir_t), kind = 'linear'))
+        mult_dec_var.append(interp2d(t_vals, x_vals, rs(results[0]['lam_x0'][k*ir_s*ir_t : (k+1)*ir_s*ir_t], ir_s, ir_t), kind = 'linear'))
     offset = 4*ir_s*ir_t
 
     state_var_cop = np.copy(results[0]['x0'][offset:])
@@ -279,6 +279,10 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
     mult_ineq = []
     for k in range(2):
         mult_ineq.append(interp1d(t_vals, results[0]['lam_g0'][k*ir_t:(k+1)*ir_t], fill_value="extrapolate"))
+    #mult_ineq.append(results[0]['lam_g0'][-5:])
+    #offset = 2*ir_t
+    #for k in range(5):
+    #    mult_ineq.append(interp2d(x_vals, t_vals, rs(results[0]['lam_g0'][offset + k*ir**2 : offset + (k+1)*ir**2], ir)))
 
     counter = 0
     x0_j = []
@@ -345,8 +349,8 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
         mult_dec_var = []
         mult_stat_var = []
         for k in range(4):
-            decision_vars.append(interp2d(t_vals, x_vals,  rs(results[counter]['x0'][k * j_s*j_t: (k + 1) * j_s*j_t], j_s, j_t), kind = 'cubic'))
-            mult_dec_var.append(interp2d(t_vals, x_vals,  rs(results[counter]['lam_x0'][k * j_s*j_t: (k + 1) * j_s*j_t], j_s, j_t), kind = 'cubic'))
+            decision_vars.append(interp2d(t_vals, x_vals,  rs(results[counter]['x0'][k * j_s*j_t: (k + 1) * j_s*j_t], j_s, j_t), kind = 'linear'))
+            mult_dec_var.append(interp2d(t_vals, x_vals,  rs(results[counter]['lam_x0'][k * j_s*j_t: (k + 1) * j_s*j_t], j_s, j_t), kind = 'linear'))
         offset = 4 * j_s*j_t
 
         state_var_cop = np.copy(results[counter]['x0'][offset:])

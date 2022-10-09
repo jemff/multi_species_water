@@ -5,8 +5,9 @@ from four_spec_sim import *
 import pickle as pkl
 from scipy.signal import savgol_filter
 import numpy as np
+t_s = 60
 
-h = 20 / (365*24*60)
+h = 20 / (365*24*t_s)
 a = 0.4
 m0 = 10 ** (-3)
 gamma = 1
@@ -14,8 +15,8 @@ k = 0.05
 masses = np.array([0.05, 20])
 
 f_c = 0  # 0.15 / (365*24)
-r = 1 / (365*24*60)
-r_b = 1 / (365*24*60)
+r = 1 / (365*24*t_s)
+r_b = 1 / (365*24*t_s)
 eps0 = 0.05
 #comp = 0
 Cmax = h * masses ** (0.75)#*50
@@ -23,20 +24,21 @@ metabolism = 0.1 * h *masses**(0.75)
 print(metabolism)
 epsi = eps0 * ((1 - a) * np.log(masses / m0) - np.log(eps0))
 
-diffusivity_ff = 1/60 #0.25 #0.3 #10**(-3) #0.3*10**(-4)
-diffusivity_z = 1/60 #0.25 #0.3 #10**(-3) #0.3*10**(-4)
+diffusivity_ff = 1/t_s #0.25 #0.3 #10**(-3) #0.3*10**(-4)
+diffusivity_z = 1/t_s #0.25 #0.3 #10**(-3) #0.3*10**(-4)
 
 depth = 100
-gamma0 = 1e-4 #1e-9*(3600) #1e-4  # 1e-9*(3600**2) REMARK 1e-4 and 1e-3 work remarkably well!!! Now shifting to realistic units...
-gamma1 = 1e-3 #1e-8*(3600)  # 1e-8*(3600**2)
+gamma0 = 1e-5#/t_s**2 #1e-9*(3600) #1e-4  # 1e-9*(3600**2) REMARK 1e-4 and 1e-3 work remarkably well!!! Now shifting to realistic units...
+gamma1 = 1e-4#/t_s**2 #1e-8*(3600)  # 1e-8*(3600**2)
 
 
-def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-3, scalar = 'scalar4', hessian_approximation = True, tol = 1e-8): #Can also work -7
+def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-6, scalar = 'scalar4', hessian_approximation = True, tol = 1e-8): #Scalar2 for central=False, scalar4 for central = True. Why? I don't know
     Mx = simple_method(depth, tot_points)
     #must be even
     inte = np.ones(tot_points).reshape(1, tot_points)
-    D = fin_diff_mat_periodic(fidelity,length = 24*60, central = True)
-    M_per = M_per_calc(fidelity, length = 24*60)
+    #D = spectral_periodic(fidelity, length=24*t_s)
+    D = fin_diff_mat_periodic(fidelity,length = 24*t_s, central = True)
+    M_per = M_per_calc(fidelity, length = 24*t_s)
     rz = 1/(1+np.exp(0.2*(Mx.x - 20)))
     rz = rz/(inte @ Mx.M @ rz)
 
@@ -45,13 +47,14 @@ def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info =
     c_z = Cmax[0]
     c_ff = Cmax[1]
     bg_M = 0 #0.1 / (365*24)
-    beta_0 = 5*10**(-2) #5*10 ** (-3)
+    beta_0 = 5*10**(-3) #5*10 ** (-3)
     A = np.cos(2*np.pi*np.linspace(0,1,5*fidelity+5)[0:-5])*1/np.sqrt(2)
     A[A < -1 / 2] = -1 / 2
     A[A > 1 / 2] = 1 / 2
     A = A+1/2
     smoothed_A = savgol_filter(A, window_length = 5, polyorder = 3)
     light_levels = smoothed_A[0::5]
+    light_levels = (np.hstack([np.tanh(5 * np.linspace(-1, 1, int(np.ceil(fidelity / 2))))[::-1], np.tanh(5 * np.linspace(-1, 1, int(np.floor(fidelity/ 2))))])+1)/2
 
     #print(gamma0, gamma1)
     p_z_l = []
@@ -97,9 +100,9 @@ def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info =
     one_col = np.ones((tot_points,1))
     for j in range(fidelity):
         Vi = light_levels[j]
-        beta_i = 330 / (365*24*60) * masses ** (0.75) * gamma
+        beta_i = 330 / (365*24*t_s) * masses ** (0.75) * gamma
         #print(beta_i)
-        beta_z.append( 330 / (365*24*60) * gamma * one_col * masses[0] ** (0.75))
+        beta_z.append( 330 / (365*24*t_s) * gamma * one_col * masses[0] ** (0.75))
         beta_ff.append(2 * beta_i[1] * (Vi*upright_wc / (1 + upright_wc) ) + beta_i[1] *beta_0) #+ *330/365*gamma*11**(0.75))
 
 
@@ -177,39 +180,39 @@ def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info =
     D_trans, D_diff_ff = transport_matrix(depth, tot_points, diffusivity = diffusivity_ff, central = True)
 
     D_hjb = D_trans#.T# D_HJB(depth = depth, total_points=tot_points) #This, or -D_trans.T, unclear which. D_trans should also work.
-    J_z_p = (ones @ (M_per @ (t_Jsigma_z + D @ t_p_z + (D_hjb @ t_p_z.T).T * ca.hcat(vel_z_l).T - (D_diff_z @ t_p_z.T).T) ** 2)) @ i1 /(tot_points-1) #((fidelity - 1) * (tot_points - 1)) #Repurposed to HJB
-    J_z_v =  (ones @ (M_per @ (t_dJv_z + (D_hjb @ t_p_z.T).T)**2 )) @ i1/(tot_points-1)#/((fidelity-1)*(tot_points-1))
+    J_z_p = i1.T @ Mx.M @ (ones @ (M_per @ (t_Jsigma_z + D @ t_p_z + (D_hjb @ t_p_z.T).T * ca.hcat(vel_z_l).T - (D_diff_z @ t_p_z.T).T) ** 2)).T  #@ i1/(tot_points-1) #((fidelity - 1) * (tot_points - 1)) #Repurposed to HJB
+    J_z_v =  i1.T @ Mx.M @ (ones @ (M_per @ (t_dJv_z + (D_hjb @ t_p_z.T).T)**2 )).T #@ i1/(tot_points-1)#/((fidelity-1)*(tot_points-1))
 
-    J_ff_p = (ones @ (M_per @ (t_Jsigma_ff + D @ t_p_ff + (D_hjb @ t_p_ff.T).T * ca.hcat(vel_ff_l).T - (D_diff_ff @ t_p_ff.T).T )**2)) @ i1/(tot_points-1) #/((fidelity-1)*(tot_points-1)) #Repurposed to HJB
-    J_ff_v = (ones @ (M_per @ (t_dJv_ff + (D_hjb @ t_p_ff.T).T)**2) ) @ i1/(tot_points-1) #((fidelity-1)*(tot_points-1))
+    J_ff_p = i1.T @ Mx.M @  (ones @ (M_per @ (t_Jsigma_ff + D @ t_p_ff + (D_hjb @ t_p_ff.T).T * ca.hcat(vel_ff_l).T - (D_diff_ff @ t_p_ff.T).T )**2)).T  #@ i1/(tot_points-1) #/((fidelity-1)*(tot_points-1)) #Repurposed to HJB
+    J_ff_v = i1.T @ Mx.M @ (ones @ (M_per @ (t_dJv_ff + (D_hjb @ t_p_ff.T).T)**2) ).T #@ i1/(tot_points-1) #((fidelity-1)*(tot_points-1))
 
     #    can_eqs = i1 @ (canonical_p_z @ ones) + i1 @ (canonical_sigma_z @ ones) + i1 @ (canonical_p_ff @ ones) + i1 @ (canonical_sigma_ff @ ones)
     trans_z = (D @ t_sigma_z + (D_trans @ ( ca.hcat(sigma_z_l) * ca.hcat(vel_z_l))).T + (D_diff_z @  ca.hcat(sigma_z_l)).T)**2#/((fidelity-1)*(tot_points-1))
     trans_ff = (D @ t_sigma_ff + (D_trans @ ( ca.hcat(sigma_ff_l) * ca.hcat(vel_ff_l))).T + (D_diff_ff @  ca.hcat(sigma_ff_l)).T)**2#/((fidelity-1)*(tot_points-1))
 
-    trans_z_t =  (ones @ (M_per @ trans_z)) @ i1/(tot_points-1)
-    trans_ff_t = (ones @ (M_per @ trans_ff))@ i1/(tot_points-1)
+    trans_z_t = (( Mx.M @ (ones @ (M_per @ trans_z)).T).T @ i1)
+    trans_ff_t = (( Mx.M @ (ones @ (M_per @ trans_ff)).T).T @ i1)
 
     fp_z = ones @ (M_per @ v_c(dyn_0))**2
     fp_ff = ones @ (M_per @ v_c(dyn_0))**2
     fp_r = ones @ (M_per @ v_c(dyn_5))**2
 
-    D_ex = fin_diff_mat_periodic(N = fidelity, length = 24*60, central = True)
+    D_ex = fin_diff_mat_periodic(N = fidelity, length = 24*t_s, central = True)
     p_eq_z = 0 #ones @ M_per @ (D_ex @ v_c(s0_vec) - v_c(dyn_0))**2
     p_eq_ff = 0# ones @ M_per @ (D_ex @ v_c(s1_vec) - v_c(dyn_1))**2
     p_eq_r = 0#ones @ M_per @ (D_ex @ v_c(s5_vec) - v_c(dyn_5))**2
     pop_dyn_eqs = p_eq_z + p_eq_ff + p_eq_r
 
 
-    f = pop_dyn_eqs# #pop_dyn_eqs
+    f = fp_z+fp_ff+fp_r # #pop_dyn_eqs
 
     x = ca.vertcat(*[*vel_z_l, *vel_ff_l, *p_z_l, *p_ff_l, *sigma_z_l, *sigma_ff_l, *state_l])
 
-    g = ca.vertcat(*[*prob_l, trans_z_t, trans_ff_t, fp_z, fp_ff, fp_r,  J_z_v , J_ff_v, J_z_p, J_ff_p, p_eq_z, p_eq_ff, p_eq_r])#, ca.reshape(J_z_p, (-1,1)), ca.reshape(J_ff_p, (-1,1)), ca.reshape(J_ff_p, -1,1), ca.reshape(J_z_v, (-1,1)), ca.reshape(J_ff_v, (-1,1))])#, ca.reshape(trans_z,  (-1,1)), ca.reshape(trans_ff, (-1,1))])
+    g = ca.vertcat(*[*prob_l, trans_z_t, trans_ff_t, fp_z+fp_ff+fp_r, 0, 0,  J_z_v , J_ff_v, J_z_p, J_ff_p, p_eq_z, p_eq_ff, p_eq_r])#, ca.reshape(J_z_p, (-1,1)), ca.reshape(J_ff_p, (-1,1)), ca.reshape(J_ff_p, -1,1), ca.reshape(J_z_v, (-1,1)), ca.reshape(J_ff_v, (-1,1))])#, ca.reshape(trans_z,  (-1,1)), ca.reshape(trans_ff, (-1,1))])
     probs = 2*fidelity
     lbg = np.concatenate([np.zeros(probs+12)])#, np.repeat(-10**(-6), g.size()[0] - probs)])
     #upper_zeros = 2*fidelity+2*fidelity*tot_points
-    ubg = np.concatenate([np.zeros(probs), 1e-8*np.ones(5), 1e-8*np.ones(7)])#, np.repeat(10**(-6), g.size()[0] - probs)])
+    ubg = np.concatenate([np.zeros(probs), 1e-8*np.ones(5),1e-6*np.ones(7)])#, np.repeat(10**(-6), g.size()[0] - probs)])
     #np.zeros(g.size()[0])#ca.vertcat(*[*np.zeros(upper_zeros)])#, (g.size()[0]-(upper_zeros))*[ca.inf]])
     lbx = ca.vertcat(fidelity*4*tot_points*[-ca.inf], np.zeros(tot_points*fidelity*2), np.ones(3)*10**(-5))
     ubx = ca.vertcat(*[[ca.inf]*(x.size()[0]-3), np.repeat(Rmax, 3)])
@@ -261,9 +264,9 @@ from scipy.interpolate import interp1d
 from scipy.interpolate import splrep
 from scipy.interpolate import UnivariateSpline
 from scipy.ndimage import gaussian_filter
-def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t = 5, jumpsize_s = 5, save = True, Rmax = 5, warmstart_info = None, warmstart_opts = 1e-3, tol = 1e-6):
+def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t = 5, jumpsize_s = 5, save = True, Rmax = 5, warmstart_info = None, warmstart_opts = 1e-3, lockstep=True):
     x_vals = np.linspace(0,depth,ir_s)
-    t_vals = np.linspace(0, 24*60, ir_t + 1)[:-1]
+    t_vals = np.linspace(0, 24*t_s, ir_t + 1)[:-1]
     def rs(x, y, z = None):
         if z is None:
             return x.reshape((y,y))
@@ -275,8 +278,30 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
     j_s_l = np.array(range(ir_s, fr_s+1, jumpsize_s))
 
     j_l = []
-    for k in range(max(len(j_s_l), len(j_t_l))):
-        j_l.append([j_s_l[min(k, len(j_s_l)-1)], j_t_l[min(k, len(j_t_l)-1)]])
+    if lockstep is True: #This allows us to refine time then space
+        for k in range(max(len(j_s_l), len(j_t_l))):
+            j_l.append([j_s_l[min(k, len(j_s_l)-1)], j_t_l[min(k, len(j_t_l)-1)]])
+    else:
+        tick = True
+        j_l.append([j_s_l[0], j_t_l[0]])
+        #print("I get in here")
+        if fr_t>fr_s:
+            for k in range(1, 2*max(len(j_s_l), len(j_t_l))):
+                if tick is True:
+                    j_l.append([j_s_l[int((k-1)/2)], j_l[k-1][1]])
+                    tick = False
+                else:
+                    j_l.append([j_l[k-1][0], j_t_l[int((k)/2)]])
+                    tick = True
+        else:
+            print("fr_s>fr_t")
+            for k in range(1, 2*max(len(j_s_l), len(j_t_l))):
+                if tick is False:
+                    j_l.append([j_s_l[int((k)/2)], j_l[k-1][1]])
+                    tick = True
+                else:
+                    j_l.append([j_l[k-1][0], j_t_l[int((k-1)/2)]])
+                    tick = False
 
         #np.linspace(0, 1, ir + 1)[:-1]
     results = []
@@ -290,7 +315,7 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
 
         if counter > 0:
             x_vals = np.linspace(0, depth, j_s)
-            t_vals = np.linspace(0, 24 * 60, j_t + 1)[:-1]
+            t_vals = np.linspace(0, 24 * t_s, j_t + 1)[:-1]
 
             x0_j = []
             lam_x0_j = []
@@ -336,16 +361,22 @@ def increase_resolution(ir_t = 20, fr_t = 50, ir_s = 20, fr_s = 50, jumpsize_t =
     return results
 
 
-def vary_resources(start = 5, stop = 50, steps = 45, ir_t = 10, fr_t = 70, ir_s = 10, fr_s = 70, jumpsize = 1):
+def vary_resources_grid_all(start = 5, stop = 50, steps = 45, ir_t = 10, fr_t = 70, ir_s = 10, fr_s = 70, jumpsize = 1):
     grid_variation = []
-    jump_scale = int(ir_t/ir_s)
+    if ir_t > ir_s:
+        jump_scale_t = int(ir_t/ir_s)
+        jump_scale_s = 1
+    else:
+        jump_scale_s = int(ir_s / ir_t)
+        jump_scale_t = 1
     print("Starting resource variation")
+    print(jump_scale_s, jump_scale_s)
     resources = np.linspace(start, max(stop,start), steps)
-    grid_variation.append(increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=jumpsize, jumpsize_t=jump_scale*jumpsize, Rmax=resources[0]))
+    grid_variation.append(increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=jumpsize*jump_scale_s, jumpsize_t=jump_scale_t*jumpsize, Rmax=resources[0], lockstep=False))
     print(resources)
     for i in range(1,steps):
         grid_variation.append(
-            increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s = jumpsize, jumpsize_t = jump_scale*jumpsize, Rmax=resources[i], warmstart_info=grid_variation[-1][0], warmstart_opts = 1e-3))
+            increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s = jumpsize*jump_scale_s, jumpsize_t = jump_scale_t*jumpsize, Rmax=resources[i], warmstart_info=grid_variation[-1][0], warmstart_opts = 1e-3, lockstep=False))
         #res_var_list.append(
         #    increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=10, jumpsize_t=10,  Rmax=resources[i]))
 
@@ -357,8 +388,33 @@ def vary_resources(start = 5, stop = 50, steps = 45, ir_t = 10, fr_t = 70, ir_s 
 #    with open('data/' + 'pdeco4_res_'+str(jumpsize) + '.pkl', 'wb') as f:
 #    pkl.dump(grid_variation, f, pkl.HIGHEST_PROTOCOL)
 
-vary_resources(steps = 46, ir_s = 4, ir_t= 12, fr_s=30, fr_t=90, jumpsize=1, stop = 50)
+def vary_resources(start = 5, stop = 50, steps = 45, ir_t = 10, fr_t = 70, ir_s = 10, fr_s = 70, jumpsize = 1):
+    grid_variation = []
+    if ir_t > ir_s:
+        jump_scale_t = int(ir_t/ir_s)
+        jump_scale_s = 1
+    else:
+        jump_scale_s = int(ir_s / ir_t)
+        jump_scale_t = 1
+    print("Starting resource variation")
+    print(jump_scale_s, jump_scale_s)
+    resources = np.linspace(start, max(stop,start), steps)
+    grid_variation.append(increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=jumpsize*jump_scale_s, jumpsize_t=jump_scale_t*jumpsize, Rmax=resources[0], lockstep=False)[-1])
+    print(resources)
+    for i in range(1,steps):
+        grid_variation.append(
+            output(fidelity=fr_t, tot_points=fr_s, warmstart_info=grid_variation[-1],  Rmax=resources[i], warmstart_opts=1e-3))
+       # res_var_list.append(
+       #     increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=10, jumpsize_t=10,  R_max=resources[i]))
 
+        print((i+1)/steps, " Completion ratio")
+    results_and_params = {'gamma0': gamma0, 'gamma1': gamma1, 'simulations':grid_variation}
+    with open('data/' + 'pdeco2_res_'+str(fr_s*fr_t)+'_'+str(stop) + '.pkl', 'wb') as f:
+        pkl.dump(results_and_params, f, pkl.HIGHEST_PROTOCOL)
+
+
+vary_resources_grid_all(steps = 20, ir_s = 3, ir_t = 12, fr_s=20, fr_t=80, jumpsize=1, start = 1, stop = 20)
+#vary_resources(steps = 23, ir_s = 4, ir_t = 12, fr_s=30, fr_t=90, jumpsize=1, start = 5, stop = 50)
 #REMEMBER! THE BEST RESULT WAS CREATED WITH A JUMPSIZE OF 1 AND 46 STEPS
 #WORS ALSO WITH JUMPSIZE 2 AND 23 STEPS (simple method)
 #NOW TESTING: JS 1 23 steps

@@ -112,15 +112,17 @@ class spectral_method:
 
 
 class simple_method:
-    def __init__(self, depth, total_points):
+    def __init__(self, depth, total_points, central = True):
         tot_points = total_points
 
         self.x = np.linspace(0, depth, tot_points)
+        if central is True:
+            self.M =  2/3*np.identity(tot_points) + 1/6*np.diag(np.ones(tot_points - 1), -1) + 1/6*np.diag(np.ones(tot_points - 1), 1)
+            self.M[0,0] = 1/3
+            self.M[-1,-1] = 1/3
+        else:
+            self.M = 0.5 * (np.identity(tot_points) + np.diag(np.ones(tot_points - 1), -1))
 
-        #self.M = depth / (tot_points - 1) * 0.5 * (np.identity(tot_points) + np.diag(np.ones(tot_points - 1), -1))
-        self.M =  2/3*np.identity(tot_points) + 1/6*np.diag(np.ones(tot_points - 1), -1) + 1/6*np.diag(np.ones(tot_points - 1), 1)
-        self.M[0,0] = 1/3
-        self.M[-1,-1] = 1/3
         h = (tot_points-1)/depth
 
         self.M = self.M/h
@@ -168,7 +170,7 @@ def fin_diff_mat_periodic(N, length =24, central = False):
 
     return D
 
-def spectral_periodic(N):
+def spectral_periodic(N, length = 2*np.pi):
     D = np.zeros((N,N))
     D_ana = lambda t, v : \
     1/2*(-1)**(t-v)* \
@@ -180,6 +182,7 @@ def spectral_periodic(N):
             if k != i:
                 D[i,k] = D_ana(i,k)
                 #print(i,k)
+    D = D*2*np.pi/length
     return D
 def transport_matrix(depth = 200, total_points = 100, diffusivity = 0, central = False):
     #D = np.identity(total_points)

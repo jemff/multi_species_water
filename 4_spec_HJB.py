@@ -29,8 +29,9 @@ diffusivity_ff = 1/60 #10**(-3) #0.3*10**(-4)
 diffusivity_z = 1/60 #10**(-3) #0.3*10**(-4)
 
 depth = 200
-def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-6, scalar = 'scalar4', hessian_approximation = True, tol = 1e-6): #Tolerance should be 1e-8 but we have decreased for speed
+def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-6, scalar = 'scalar2', hessian_approximation = True, tol = 1e-7): #Tolerance should be 1e-8 but we have decreased for speed
     #scalar2 is also good when not using central, remark that warmstart_opts of 1e-3 work well with lockstep, and should 1e-6 with lockstep off.
+    # REMARK SCALAR2 APPEARS MOST ROBUST WITH CORRECT MORTALITY PENALIZATION
     Mx = simple_method(depth, tot_points, central = True) #Specifying the integration method, this is a finite element method
     #must be even
     inte = np.ones(tot_points).reshape(1, tot_points)
@@ -59,9 +60,9 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
     #(np.hstack([np.tanh(5 * np.linspace(-1, 1, int(np.ceil(fidelity / 2))    ))[::-1], np.tanh(5 * np.linspace(-1, 1, int(np.floor(fidelity/ 2))))])+1)/2
 
     gamma0 = 1e-4 #Cost of motion for zooplankton
-    gamma1 = 1e-4 #Cost of motion for forage fish
-    gamma2 = 0.5*1e3#Cost of motion for large pelagics
-    gamma3 = 0.5*1e-3 #Cost of motion for large demersals
+    gamma1 = 1e-3 #Cost of motion for forage fish
+    gamma2 = 1e-2 #Cost of motion for large pelagics, remark that these two can also be set to half the current value,unclear which is correct
+    gamma3 = 1e-2 #Cost of motion for large demersals
 
     p_z_l = [] #The p_i_l are the list of value function values, the list captures the time dimension
     p_ff_l = []
@@ -162,11 +163,12 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
         ld_satiation.append((1 / (state_l[j][1] * ld_ff_enc[j] + state_l[j][4] * ld_bc_enc[j] + c_ld)))
 
 
-        #These are the instantaneous payoffs of each type
-        Jsig_z.append(epsi[0] * state_l[j][-1] * c_z*beta_z[j] * rz/(c_z+state_l[j][-1] * beta_z[j] * rz) - (state_l[j][1] * (
+        #These the instantaneous payoffs of each type, remark the p_i_l term from the mortality discounting are missing here. This decreases the realism of the model, but increases the sparsity of the Hessian.
+        #The terms can be included at low spatial resolutions at apoint where everything is standing still, using that as a warmstart to increase the spatial resolution. Then go up as usual.
+        Jsig_z.append(epsi[0] * state_l[j][-1] * c_z*beta_z[j] * rz/(c_z+state_l[j][-1] * beta_z[j] * rz) - p_z_l[j]*(state_l[j][1] * (
                     c_ff * sigma_ff_l[j] * beta_ff[j] * ff_satiation[j]) - gamma0/2*vel_z_l[j]**2))
         Jsig_ff.append((epsi[1] * state_l[j][0] * c_ff * beta_ff[j] * sigma_z_l[j]/(c_ff + beta_ff[j]*state_l[j][0]*sigma_z_l[j]))
-                       - (state_l[j][2]*sigma_lp_l[j]*c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[j][1])- state_l[j][3] * sigma_ld_l[j] * beta_ld[j]/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[j][1]+beta_ld_b[j]*state_l[j][-2]*bent_dist)) - gamma1/2*vel_ff_l[j]**2)
+                       - p_ff_l[j]*(state_l[j][2]*sigma_lp_l[j]*c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[j][1])- state_l[j][3] * sigma_ld_l[j] * beta_ld[j]/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[j][1]+beta_ld_b[j]*state_l[j][-2]*bent_dist)) - gamma1/2*vel_ff_l[j]**2)
         Jsig_lp.append((epsi[2] * state_l[j][1] * sigma_ff_l[j] * c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[j][1])) - gamma2/2*vel_lp_l[j])
         Jsig_ld.append(c_ld * epsi[3] * (
                     state_l[j][1] * sigma_ff_l[j] * beta_ld[j] + state_l[j][4] * beta_ld_b[j] * bent_dist)/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[j][1]+beta_ld_b[j]*state_l[j][-2]*bent_dist) - gamma3/2*vel_ld_l[j]**2)
@@ -251,7 +253,7 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
     J_lp_p = ones.T @ Mx.M @( i1 @ M_per @ ((t_Jsigma_lp + D @ t_p_lp + (D_hjb @ t_p_lp.T).T * ca.hcat(vel_lp_l).T - (D_diff_lp @ t_p_lp.T).T ))**2 ).T#/((tot_points-1)) #Repurposed to HJB
     J_lp_v = ones.T @ Mx.M @(i1 @ M_per @ (t_dJv_lp + (D_hjb @ t_p_lp.T).T)**2).T #/((tot_points-1))
 
-    J_ld_p = ones.T @ Mx.M @(i1 @ M_per @ (((t_Jsigma_ld + D @ t_p_ld +  (D_hjb @ t_p_ld.T).T * ca.hcat(vel_ld_l).T - (D_diff_ld @ t_p_ff.T).T )))**2 ).T ##/((tot_points-1)) #Repurposed to HJB
+    J_ld_p = ones.T @ Mx.M @(i1 @ M_per @ (((t_Jsigma_ld + D @ t_p_ld +  (D_hjb @ t_p_ld.T).T * ca.hcat(vel_ld_l).T - (D_diff_ld @ t_p_ld.T).T )))**2 ).T ##/((tot_points-1)) #Repurposed to HJB
     J_ld_v = ones.T @ Mx.M @(i1 @ M_per @ (t_dJv_ld + (D_hjb @ t_p_ld.T).T)**2).T #/((tot_points-1))
 
 
@@ -259,7 +261,7 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
     trans_z = (D @ t_sigma_z + (D_trans @ ( ca.hcat(sigma_z_l) * ca.hcat(vel_z_l))).T + (D_diff_z @  ca.hcat(sigma_z_l)).T)**2 #Implementing the transport equation
     trans_ff = (D @ t_sigma_ff + (D_trans @ ( ca.hcat(sigma_ff_l) * ca.hcat(vel_ff_l))).T + (D_diff_ff @  ca.hcat(sigma_ff_l)).T)**2
     trans_lp = (D @ t_sigma_lp + (D_trans @ ( ca.hcat(sigma_lp_l) * ca.hcat(vel_lp_l))).T + (D_diff_lp @  ca.hcat(sigma_lp_l)).T)**2
-    trans_ld = (D @ t_sigma_ld + (D_trans @ ( ca.hcat(sigma_ld_l) * ca.hcat(vel_ld_l))).T + (D_diff_lp @  ca.hcat(sigma_ld_l)).T)**2
+    trans_ld = (D @ t_sigma_ld + (D_trans @ ( ca.hcat(sigma_ld_l) * ca.hcat(vel_ld_l))).T + (D_diff_ld @  ca.hcat(sigma_ld_l)).T)**2
 
     trans_z_t = ones.T @ Mx.M @ (i1 @ (M_per @ trans_z)).T #@ ones/(tot_points-1) #Integrating the transport equation
     trans_ff_t = ones.T @ Mx.M @ (i1 @ (M_per @ trans_ff)).T# @ ones/(tot_points-1)
@@ -296,7 +298,7 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
     probs = 4*fidelity
     lbg = np.concatenate([np.zeros(probs+19)])#, np.repeat(-10**(-6), g.size()[0] - probs)])
     #upper_zeros = 2*fidelity+2*fidelity*tot_points
-    ubg = np.concatenate([np.zeros(probs), 1e-8*np.ones(11), 1e-6*np.ones(8)])#, np.repeat(10**(-6), g.size()[0] - probs)]) #Remark that we have soft equality rather than strong equality in the optimality, transport and HJB equations. We force strict conservation of mass
+    ubg = np.concatenate([np.zeros(probs), 1e-8*np.ones(15), 1e-6*np.ones(4)])#, np.repeat(10**(-6), g.size()[0] - probs)]) #Remark that we have soft equality rather than strong equality in the optimality, transport and HJB equations. We force strict conservation of mass
     #np.zeros(g.size()[0])#ca.vertcat(*[*np.zeros(upper_zeros)])#, (g.size()[0]-(upper_zeros))*[ca.inf]])
     lbx = ca.vertcat(fidelity*8*tot_points*[-ca.inf], np.zeros(tot_points*fidelity*4), np.ones(fidelity*6)*10**(-5))
     ubx = ca.vertcat(*[[ca.inf]*(x.size()[0]-6*fidelity), np.repeat(Rmax, 6*fidelity)])
@@ -316,7 +318,7 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
         s_opts = {'ipopt': {'print_level': 3, 'linear_solver': 'ma57', 'max_iter':1000}}
                             #'tol':10**(-5)}}#, 'hessian_approximation': 'limited-memory'}}  #
     else: #At higher iterations, use the provided warmstart information
-        s_opts = {'ipopt': {'print_level': 3, 'linear_solver': linsol, 'max_iter':8000, 'tol': tol,
+        s_opts = {'ipopt': {'print_level': 3, 'linear_solver': linsol, 'max_iter':3000, 'tol': tol,
                                'hessian_approximation': hess,
                                'warm_start_init_point': 'yes', 'warm_start_bound_push': warmstart_opts,
                                'warm_start_bound_frac': warmstart_opts, 'warm_start_slack_bound_frac': warmstart_opts,
@@ -467,11 +469,17 @@ def vary_resources(start_r = 5.0, stop_r = 50.0, start_b = 0.1, stop_b = 2.0, st
     benthos = np.linspace(start_b, stop_b, steps_b)
     jump_r = int(ir_t/ir_s)
     grid_variation = []
+    if ir_t>8: #This is necessary to jumpstart the solver with the correct mortality penalization at high grid ratios
+        power_on = increase_resolution(ir_s=4, ir_t=8, fr_s=ir_s, fr_t=ir_t, jumpsize_s=1, jumpsize_t=1, Bmax=benthos[0],
+                            Rmax=resources[0], lockstep=True)
+    else:
+        power_on = None
+
     for j in range(0,steps_b): #We refine in the benthos at the outermost loop
         for k in range(0, steps_r): #We refine the resources in the innermost loop
             if k is 0:
                 grid_variation.append(
-                    increase_resolution(ir_s = ir_s, ir_t= ir_t, fr_s=fr_s, fr_t=fr_t, jumpsize_s=jumpsize, jumpsize_t=jumpsize*jump_r, Bmax=benthos[j], Rmax=resources[0], lockstep=False))
+                    increase_resolution(ir_s = ir_s, ir_t= ir_t, fr_s=fr_s, fr_t=fr_t, jumpsize_s=jumpsize, jumpsize_t=jumpsize*jump_r, Bmax=benthos[j], Rmax=resources[0], lockstep=False, warmstart_info=power_on))
             else:
                 if j>0 and k == 0:
                     warmstarter = -steps_r*j + 1
@@ -490,9 +498,10 @@ def vary_resources(start_r = 5.0, stop_r = 50.0, start_b = 0.1, stop_b = 2.0, st
 #    with open('data/' + 'pdeco4_res_'+str(jumpsize) + '.pkl', 'wb') as f:
 #    pkl.dump(grid_variation, f, pkl.HIGHEST_PROTOCOL)
 
-vary_resources(ir_s = 4, ir_t= 12, fr_s=15, fr_t=45, jumpsize=1, steps_r = 16, steps_b = 3, stop_r=20, stop_b=0.01, start_b=0.01, start_r = 5)
-vary_resources(ir_s = 4, ir_t= 12, fr_s=15, fr_t=45, jumpsize=1, steps_r = 16, steps_b = 3, stop_r=20, stop_b=0.1, start_b=0.1, start_r = 5)
-vary_resources(ir_s = 4, ir_t= 12, fr_s=15, fr_t=45, jumpsize=1, steps_r = 16, steps_b = 3, stop_r=20, stop_b=0.2, start_b=0.2, start_r = 5)
+
+vary_resources(ir_s = 4, ir_t= 8, fr_s=30, fr_t=60, jumpsize=1, steps_r = 8, steps_b = 3, stop_r=20, stop_b=0.01, start_b=0.01, start_r = 5) #Remark the final step doesnt work.
+vary_resources(ir_s = 4, ir_t= 8, fr_s=30, fr_t=60, jumpsize=1, steps_r = 8, steps_b = 3, stop_r=20, stop_b=0.1, start_b=0.1, start_r = 5)
+vary_resources(ir_s = 4, ir_t= 8, fr_s=30, fr_t=60, jumpsize=1, steps_r = 8, steps_b = 3, stop_r=20, stop_b=0.2, start_b=0.2, start_r = 5)
 
 #Remark that we have changed in the settings in this in preparation for the next run, reducing ratio between space and time, changing from lienar to cubic, changing force_periodic to each constraint independently.
 #Apart from this we have changed to upwind method

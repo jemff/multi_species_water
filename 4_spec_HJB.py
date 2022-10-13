@@ -1,7 +1,10 @@
 
 
 
-from four_spec_sim import *
+#from four_spec_sim import *
+from infrastructure import *
+import casadi as ca
+import numpy as np
 import pickle as pkl
 from scipy.signal import savgol_filter
 import numpy as np
@@ -29,7 +32,7 @@ diffusivity_ff = 1/60 #10**(-3) #0.3*10**(-4)
 diffusivity_z = 1/60 #10**(-3) #0.3*10**(-4)
 
 depth = 200
-def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-6, scalar = 'scalar2', hessian_approximation = True, tol = 1e-7): #Tolerance should be 1e-8 but we have decreased for speed
+def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-3, scalar = 'scalar2', hessian_approximation = True, tol = 1e-8): #Tolerance should be 1e-8 but we have decreased for speed
     #scalar2 is also good when not using central, remark that warmstart_opts of 1e-3 work well with lockstep, and should 1e-6 with lockstep off.
     # REMARK SCALAR2 APPEARS MOST ROBUST WITH CORRECT MORTALITY PENALIZATION
     Mx = simple_method(depth, tot_points, central = True) #Specifying the integration method, this is a finite element method
@@ -166,9 +169,9 @@ def output(tot_points = 20, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info 
         #These the instantaneous payoffs of each type, remark the p_i_l term from the mortality discounting are missing here. This decreases the realism of the model, but increases the sparsity of the Hessian.
         #The terms can be included at low spatial resolutions at apoint where everything is standing still, using that as a warmstart to increase the spatial resolution. Then go up as usual.
         Jsig_z.append(epsi[0] * state_l[j][-1] * c_z*beta_z[j] * rz/(c_z+state_l[j][-1] * beta_z[j] * rz) - p_z_l[j]*(state_l[j][1] * (
-                    c_ff * sigma_ff_l[j] * beta_ff[j] * ff_satiation[j]) - gamma0/2*vel_z_l[j]**2))
+                    c_ff * sigma_ff_l[j] * beta_ff[j] * ff_satiation[j])) - gamma0/2*vel_z_l[j]**2)
         Jsig_ff.append((epsi[1] * state_l[j][0] * c_ff * beta_ff[j] * sigma_z_l[j]/(c_ff + beta_ff[j]*state_l[j][0]*sigma_z_l[j]))
-                       - p_ff_l[j]*(state_l[j][2]*sigma_lp_l[j]*c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[j][1])- state_l[j][3] * sigma_ld_l[j] * beta_ld[j]/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[j][1]+beta_ld_b[j]*state_l[j][-2]*bent_dist)) - gamma1/2*vel_ff_l[j]**2)
+                       - p_ff_l[j]*(state_l[j][2]*sigma_lp_l[j]*c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[j][1]) + state_l[j][3] * sigma_ld_l[j] * beta_ld[j]/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[j][1]+beta_ld_b[j]*state_l[j][-2]*bent_dist)) - gamma1/2*vel_ff_l[j]**2)
         Jsig_lp.append((epsi[2] * state_l[j][1] * sigma_ff_l[j] * c_lp * beta_lp[j]/(c_lp + sigma_ff_l[j]*beta_lp[j]*state_l[j][1])) - gamma2/2*vel_lp_l[j])
         Jsig_ld.append(c_ld * epsi[3] * (
                     state_l[j][1] * sigma_ff_l[j] * beta_ld[j] + state_l[j][4] * beta_ld_b[j] * bent_dist)/(c_ld+beta_ld[j]*sigma_ff_l[j]*state_l[j][1]+beta_ld_b[j]*state_l[j][-2]*bent_dist) - gamma3/2*vel_ld_l[j]**2)
@@ -471,7 +474,7 @@ def vary_resources(start_r = 5.0, stop_r = 50.0, start_b = 0.1, stop_b = 2.0, st
     grid_variation = []
     if ir_t>8: #This is necessary to jumpstart the solver with the correct mortality penalization at high grid ratios
         power_on = increase_resolution(ir_s=4, ir_t=8, fr_s=ir_s, fr_t=ir_t, jumpsize_s=1, jumpsize_t=1, Bmax=benthos[0],
-                            Rmax=resources[0], lockstep=True)
+                            Rmax=resources[0], lockstep=True)[-1]
     else:
         power_on = None
 
@@ -499,9 +502,12 @@ def vary_resources(start_r = 5.0, stop_r = 50.0, start_b = 0.1, stop_b = 2.0, st
 #    pkl.dump(grid_variation, f, pkl.HIGHEST_PROTOCOL)
 
 
-vary_resources(ir_s = 4, ir_t= 8, fr_s=30, fr_t=60, jumpsize=1, steps_r = 8, steps_b = 3, stop_r=20, stop_b=0.01, start_b=0.01, start_r = 5) #Remark the final step doesnt work.
-vary_resources(ir_s = 4, ir_t= 8, fr_s=30, fr_t=60, jumpsize=1, steps_r = 8, steps_b = 3, stop_r=20, stop_b=0.1, start_b=0.1, start_r = 5)
-vary_resources(ir_s = 4, ir_t= 8, fr_s=30, fr_t=60, jumpsize=1, steps_r = 8, steps_b = 3, stop_r=20, stop_b=0.2, start_b=0.2, start_r = 5)
+#vary_resources(ir_s = 4, ir_t= 12, fr_s=30, fr_t=90, jumpsize=1, steps_r = 8, steps_b = 1, stop_r=20, start_b=0.01, stop_b=0.01, start_r = 5) #Remark the final step doesnt work.
+#vary_resources(ir_s = 4, ir_t= 8, fr_s=30, fr_t=60, jumpsize=1, steps_r = 8, steps_b = 1, stop_r=20, start_b=0.05, stop_b=0.15, start_r = 5)
+vary_resources(ir_s = 4, ir_t= 12, fr_s=30, fr_t=90, jumpsize=1, steps_r = 8, steps_b = 1, stop_r=20, start_b=0.01, stop_b=0.01, start_r = 5) #Remark the final step doesnt work.
+vary_resources(ir_s = 4, ir_t= 12, fr_s=30, fr_t=90, jumpsize=1, steps_r = 8, steps_b = 1, stop_r=20, start_b=0.1, stop_b=0.1, start_r = 5)
+#vary_resources(ir_s = 4, ir_t= 8, fr_s=30, fr_t=60, jumpsize=1, steps_r = 8, steps_b = 1, stop_r=20, stop_b=0.1, start_b=0.1, start_r = 5)
+#vary_resources(ir_s = 4, ir_t= 8, fr_s=30, fr_t=60, jumpsize=1, steps_r = 8, steps_b = 1, stop_r=20, stop_b=0.2, start_b=0.2, start_r = 5)
 
 #Remark that we have changed in the settings in this in preparation for the next run, reducing ratio between space and time, changing from lienar to cubic, changing force_periodic to each constraint independently.
 #Apart from this we have changed to upwind method

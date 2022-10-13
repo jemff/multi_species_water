@@ -32,7 +32,7 @@ gamma0 = 1e-4 #1e-9 in seconds #1e-4  # 1e-9*(310**2) REMARK 1e-4 and 1e-3 work 
 gamma1 = 1e-3 #1e-8
 
 #We can also use wwarmstart?opts 1e-6 if we change the gammes to realistic values
-def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-6, scalar = 'scalar4', hessian_approximation = True, tol = 1e-8): #scalar4 works best based on testing. Why? Noone knows.
+def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info = None, warmstart_opts = 1e-6, scalar = 'scalar2', hessian_approximation = True, tol = 1e-8): #scalar4 works best based on testing. Why? Noone knows.
     Mx = simple_method(depth, tot_points, central = True)
     #must be even
     inte = np.ones(tot_points).reshape(1, tot_points)
@@ -183,12 +183,12 @@ def output(tot_points = 5, fidelity = 20, Rmax = 5, Bmax = 0.1, warmstart_info =
     D_trans, D_diff_ff = transport_matrix(depth, tot_points, diffusivity = diffusivity_ff, central = True)
 
     D_hjb = D_trans#.T# D_HJB(depth = depth, total_points=tot_points) #This, or -D_trans.T, unclear which. D_trans should also work.
-    J_z_p = i1.T @ Mx.M @ (ones @ (M_per @ (t_Jsigma_z + D @ t_p_z + (D_hjb @ t_p_z.T).T * ca.hcat(vel_z_l).T - (D_diff_z @ t_p_z.T).T) ** 2)).T  #@ i1/(tot_points-1) #((fidelity - 1) * (tot_points - 1)) #Repurposed to HJB
-    J_z_v =  i1.T @ Mx.M @ (ones @ (M_per @ (t_dJv_z + (D_hjb @ t_p_z.T).T)**2 )).T #@ i1/(tot_points-1)#/((fidelity-1)*(tot_points-1))
+    J_z_p = ones @ M_per @ (i1.T @ Mx.M @ ((t_Jsigma_z + D @ t_p_z + (D_hjb @ t_p_z.T).T * ca.hcat(vel_z_l).T - (D_diff_z @ t_p_z.T).T )**2).T).T  #@ i1/(tot_points-1) #((fidelity - 1) * (tot_points - 1)) #Repurposed to HJB
+    J_z_v =  ones @ M_per @ (i1.T @ Mx.M @ ((t_dJv_z + (D_hjb @ t_p_z.T).T)**2 ).T).T #@ i1/(tot_points-1)#/((fidelity-1)*(tot_points-1))
     #Mx.M @
     #Mx.M @
-    J_ff_p = i1.T @ Mx.M @ (ones @ (M_per @ (t_Jsigma_ff + D @ t_p_ff + (D_hjb @ t_p_ff.T).T * ca.hcat(vel_ff_l).T - (D_diff_ff @ t_p_ff.T).T )**2)).T  #@ i1/(tot_points-1) #/((fidelity-1)*(tot_points-1)) #Repurposed to HJB
-    J_ff_v = i1.T @ Mx.M @ (ones @ (M_per @ (t_dJv_ff + (D_hjb @ t_p_ff.T).T)**2) ).T #@ i1/(tot_points-1) #((fidelity-1)*(tot_points-1))
+    J_ff_p =  ones @ M_per @ (i1.T @ Mx.M @ ((t_Jsigma_ff + D @ t_p_ff + (D_hjb @ t_p_ff.T).T * ca.hcat(vel_ff_l).T - (D_diff_ff @ t_p_ff.T).T )**2).T).T  #@ i1/(tot_points-1) #/((fidelity-1)*(tot_points-1)) #Repurposed to HJB
+    J_ff_v = ones @ M_per @ (i1.T @ Mx.M @ ((t_dJv_ff + (D_hjb @ t_p_ff.T).T)**2 ).T).T #@ i1/(tot_points-1) #((fidelity-1)*(tot_points-1))
 #The best results were actually achieved by having the dumbest possible integrals here, i.e. removing Mx.M and dividing by the total number of points, and a tolerance of 10^-8. Having precise integrals probably introduces too tight a coupling for the numerical scheme.
     # Remark the smart integarls should also be removed from the transport equation, but then it should be normalized so the factor of 100 is still included.
     trans_z = (D @ t_sigma_z + (D_trans @ ( ca.hcat(sigma_z_l) * ca.hcat(vel_z_l))).T + (D_diff_z @  ca.hcat(sigma_z_l)).T)**2#/((fidelity-1)*(tot_points-1))
@@ -408,12 +408,12 @@ def vary_resources_grid_all(start = 5, stop = 50, steps = 45, ir_t = 10, fr_t = 
     print("Starting resource variation")
     print(jump_scale_s, jump_scale_s)
     resources = np.linspace(start, max(stop,start), steps)
-    grid_variation.append(increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=jumpsize*jump_scale_s, jumpsize_t=jump_scale_t*jumpsize, Rmax=resources[0], lockstep=False)) #Changing to false stablizies, but doubles the number of iterations. Hence True is ideal
+    grid_variation.append(increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=jumpsize*jump_scale_s, jumpsize_t=jump_scale_t*jumpsize, Rmax=resources[0], lockstep=True)) #Changing to false stablizies, but doubles the number of iterations. Hence True is ideal
     print(resources)
     for i in range(1,steps):
         grid_variation.append(
             increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s = jumpsize*jump_scale_s, jumpsize_t = jump_scale_t*jumpsize,
-                                Rmax=resources[i], warmstart_info=grid_variation[-1], warmstart_opts = 1e-3, lockstep=False))
+                                Rmax=resources[i], warmstart_info=grid_variation[-1], warmstart_opts = 1e-3, lockstep=True))
         #res_var_list.append(
         #    increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=10, jumpsize_t=10,  Rmax=resources[i]))
 
@@ -436,11 +436,11 @@ def vary_resources(start = 5, stop = 50, steps = 45, ir_t = 10, fr_t = 70, ir_s 
     print("Starting resource variation")
     print(jump_scale_s, jump_scale_s)
     resources = np.linspace(start, max(stop,start), steps)
-    grid_variation.append(increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=jumpsize*jump_scale_s, jumpsize_t=jump_scale_t*jumpsize, Rmax=resources[0], lockstep=False)[-1])
+    grid_variation.append(increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=jumpsize*jump_scale_s, jumpsize_t=jump_scale_t*jumpsize, Rmax=resources[0], lockstep=True)[-1])
     print(resources)
     for i in range(1,steps):
         grid_variation.append(
-            output(fidelity=fr_t, tot_points=fr_s, warmstart_info=grid_variation[-1],  Rmax=resources[i], warmstart_opts=1e-6))
+            output(fidelity=fr_t, tot_points=fr_s, warmstart_info=grid_variation[-1],  Rmax=resources[i], warmstart_opts=1e-1))
        # res_var_list.append(
        #     increase_resolution(ir_t=ir_t, ir_s=ir_s, fr_t=fr_t, fr_s=fr_s, jumpsize_s=10, jumpsize_t=10,  R_max=resources[i]))
 
@@ -449,7 +449,7 @@ def vary_resources(start = 5, stop = 50, steps = 45, ir_t = 10, fr_t = 70, ir_s 
     with open('data/' + 'dvm_var'+str(fr_s*fr_t)+'_'+str(stop) + '.pkl', 'wb') as f:
         pkl.dump(results_and_params, f, pkl.HIGHEST_PROTOCOL)
 
-vary_resources_grid_all(steps = 26, ir_s = 4, ir_t = 12, fr_s=30, fr_t=int(3*30), jumpsize=1, start = 5, stop = 30)
+vary_resources_grid_all(steps = 15, ir_s = 4, ir_t = 12, fr_s=30, fr_t=int(3*30), jumpsize=1, start = 5, stop = 30)
 
 #REMEMBER! THE BEST RESULT WAS CREATED WITH A JUMPSIZE OF 1 AND 46 STEPS and central is True
 #WORS ALSO WITH JUMPSIZE 2 AND 23 STEPS (simple method)
